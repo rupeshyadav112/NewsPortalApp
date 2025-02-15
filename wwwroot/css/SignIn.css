@@ -1,5 +1,4 @@
-﻿
-* {
+﻿* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -17,7 +16,6 @@ body {
     margin-top: 5px;
     font-weight: bold;
 }
-
 /* Header styles */
 header {
     background-color: white;
@@ -85,29 +83,6 @@ header {
         color: rgb(31, 41, 55);
         font-weight: 600;
     }
-
-/* Search box styles */
-.search-box {
-    position: relative;
-    width: 100%;
-    max-width: 500px;
-}
-
-.search-input {
-    width: 100%;
-    padding: 0.5rem 2.5rem 0.5rem 1rem;
-    border-radius: 0.5rem;
-    border: 1px solid rgb(229, 231, 235);
-    background-color: rgb(249, 250, 251);
-}
-
-.search-icon {
-    position: absolute;
-    right: 0.75rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: rgb(156, 163, 175);
-}
 
 /* Profile dropdown styles */
 .profile-dropdown {
@@ -202,6 +177,28 @@ header {
     .login-btn:hover {
         background-color: rgb(67, 56, 202);
     }
+/* Search box styles */
+.search-box {
+    position: relative;
+    width: 100%;
+    max-width: 500px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 0.5rem 2.5rem 0.5rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(229, 231, 235);
+    background-color: rgb(249, 250, 251);
+}
+
+.search-icon {
+    position: absolute;
+    right: 0.75rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: rgb(156, 163, 175);
+}
 
 /* Container Styles */
 .signup-container {
@@ -453,5 +450,4 @@ footer {
         }
     }
 }
-
 

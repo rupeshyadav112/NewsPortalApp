@@ -35,6 +35,7 @@ main {
 
 /* Hero Section Styles */
 .hero {
+    margin-top: -100px;
     background-color: #f8f9fa;
     padding: 60px 0;
     text-align: center;

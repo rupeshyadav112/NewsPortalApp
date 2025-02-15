@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using NewsPortalApp.Models;
@@ -19,80 +18,89 @@ namespace NewsPortalApp.Controllers
             _configuration = configuration;
         }
 
-        // GET: /Account/SignUp
-        public IActionResult SignUp()
+        // GET: /Account/SignIn
+        public IActionResult SignIn()
         {
+            if (HttpContext.Session.GetInt32("UserId") != null)
+            {
+                return RedirectToAction("Index", "Home");
+            }
             return View();
         }
+
+        // POST: /Account/SignIn
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult SignIn(SignInViewModel model)
+        {
+            if (!ModelState.IsValid) return View(model);
+
+            if (model.Email == "ryadav943@rku.ac.in" && model.Password == "Admin")
+            {
+                SetAdminSession();
+                return RedirectToAction("Dashboard", "Home");
+            }
+
+            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+            {
+                conn.Open();
+                string query = "SELECT UserID, Username, FullName, Password FROM Users WHERE Email = @Email";
+                using (SqlCommand cmd = new SqlCommand(query, conn))
+                {
+                    cmd.Parameters.AddWithValue("@Email", model.Email);
+                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        if (reader.Read() && reader["Password"].ToString() == HashPassword(model.Password))
+                        {
+                            SetUserSession(reader);
+                            return RedirectToAction("Index", "Home");
+                        }
+                    }
+                }
+            }
+            ModelState.AddModelError("", "Invalid credentials");
+            return View(model);
+        }
+
+        // GET: /Account/SignUp
+        public IActionResult SignUp() => View();
 
         // POST: /Account/SignUp
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult SignUp(SignUpViewModel model)
         {
-            if (!ModelState.IsValid)
-            {
-                return View(model);
-            }
+            if (!ModelState.IsValid) return View(model);
 
-            if (!ValidateUserInput(model))
+            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
-                return View(model);
-            }
-
-            try
-            {
-                using (var connection = new SqlConnection(
-                    _configuration.GetConnectionString("DefaultConnection")))
+                conn.Open();
+                string checkQuery = "SELECT COUNT(*) FROM Users WHERE Username = @Username OR Email = @Email";
+                using (SqlCommand checkCmd = new SqlCommand(checkQuery, conn))
                 {
-                    connection.Open();
-
-                    // Check existing user
-                    var checkQuery = @"SELECT COUNT(*) FROM Users 
-                                     WHERE Username = @Username OR Email = @Email";
-
-                    using (var checkCmd = new SqlCommand(checkQuery, connection))
+                    checkCmd.Parameters.AddWithValue("@Username", model.Username);
+                    checkCmd.Parameters.AddWithValue("@Email", model.Email);
+                    if ((int)checkCmd.ExecuteScalar() > 0)
                     {
-                        checkCmd.Parameters.AddWithValue("@Username", model.Username);
-                        checkCmd.Parameters.AddWithValue("@Email", model.Email);
-
-                        var exists = (int)checkCmd.ExecuteScalar();
-                        if (exists > 0)
-                        {
-                            ModelState.AddModelError("", "Username or email already exists");
-                            return View(model);
-                        }
-                    }
-
-                    // Insert new user
-                    var insertQuery = @"INSERT INTO Users 
-                                      (Username, Email, Password, FullName) 
-                                      VALUES (@Username, @Email, @Password, @FullName)";
-
-                    using (var insertCmd = new SqlCommand(insertQuery, connection))
-                    {
-                        insertCmd.Parameters.AddWithValue("@Username", model.Username);
-                        insertCmd.Parameters.AddWithValue("@Email", model.Email);
-                        insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
-                        insertCmd.Parameters.AddWithValue("@FullName", model.Username);
-
-                        insertCmd.ExecuteNonQuery();
+                        ModelState.AddModelError("", "Username or email already exists");
+                        return View(model);
                     }
                 }
 
-                TempData["SuccessMessage"] = "Registration successful! Please login.";
-                return RedirectToAction("SignIn");
+                string insertQuery = "INSERT INTO Users (Username, Email, Password, FullName) VALUES (@Username, @Email, @Password, @FullName)";
+                using (SqlCommand insertCmd = new SqlCommand(insertQuery, conn))
+                {
+                    insertCmd.Parameters.AddWithValue("@Username", model.Username);
+                    insertCmd.Parameters.AddWithValue("@Email", model.Email);
+                    insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
+                    insertCmd.Parameters.AddWithValue("@FullName", model.Username);
+                    insertCmd.ExecuteNonQuery();
+                }
             }
-            catch (Exception ex)
-            {
-                ModelState.AddModelError("", "Registration failed. Please try again.");
-                // Log the error
-                Console.WriteLine($"Registration Error: {ex}");
-                return View(model);
-            }
+            TempData["SuccessMessage"] = "Registration successful! Please login.";
+            return RedirectToAction("SignIn");
         }
 
-        // GET: /Account/Logout
         public IActionResult Logout()
         {
             HttpContext.Session.Clear();
@@ -108,10 +116,21 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        private bool ValidateUserInput(SignUpViewModel model)
+        private void SetAdminSession()
         {
-            // Additional validation if needed
-            return true;
+            HttpContext.Session.SetInt32("UserId", 1);
+            HttpContext.Session.SetString("UserEmail", "ryadav943@rku.ac.in");
+            HttpContext.Session.SetString("Username", "Admin");
+            HttpContext.Session.SetString("FullName", "Administrator");
+            HttpContext.Session.SetString("UserProfileImage", "~/images/admin.png");
+        }
+
+        private void SetUserSession(SqlDataReader reader)
+        {
+            HttpContext.Session.SetInt32("UserId", reader.GetInt32(0));
+            HttpContext.Session.SetString("Username", reader["Username"].ToString());
+            HttpContext.Session.SetString("FullName", reader["FullName"].ToString());
+            HttpContext.Session.SetString("UserProfileImage", reader["ProfileImagePath"]?.ToString() ?? "~/images/avatar.png");
         }
     }
 }
