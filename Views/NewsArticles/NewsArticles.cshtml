@@ -1,0 +1,71 @@
+﻿@model List<NewsPortalApp.Models.Article>
+@{
+    ViewData["Title"] = "News Articles - DailyNeuzzApp";
+}
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>@ViewData["Title"]</title>
+    <link rel="stylesheet" href="~/css/NewsArticles.css" />
+</head>
+<body>
+    <main class="main-container">
+        <aside class="filters">
+            <h2>Filters</h2>
+            <form method="post" asp-action="ApplyFilters">
+                <div class="filter-group">
+                    <label for="searchTerm">Search Term:</label>
+                    <input type="text" id="searchTerm" name="searchTerm" class="form-control" />
+                </div>
+                <div class="filter-group">
+                    <label for="sortBy">Sort By</label>
+                    <select id="sortBy" name="sortBy" class="form-control">
+                        <option value="">Select an option</option>
+                        <option value="date">Date</option>
+                        <option value="popularity">Popularity</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="category">Category:</label>
+                    <select id="category" name="category" class="form-control">
+                        <option value="">Select a Category</option>
+                        <option value="worldnews">World News</option>
+                        <option value="localnews">Local News</option>
+                        <option value="sportsnews">Sports</option>
+                        <option value="entertainment">Entertainment</option>
+                        <option value="technology">Technology</option>
+                    </select>
+                </div>
+                <button type="submit" class="apply-filters">Apply Filter</button>
+            </form>
+        </aside>
+
+        <!-- Total articles here -->
+        <section class="articles-container">
+            <h1>News Articles</h1>
+            <div class="articles-grid">
+                @if (Model != null && Model.Any())
+                {
+                    foreach (var article in Model)
+                    {
+                        <article class="article-card">
+                            <img src="@Url.Content(article.ImagePath ?? "~/images/default.jpg")" alt="@article.Title" class="article-image" />
+                            <div class="article-content">
+                                <h2 class="article-title">@article.Title</h2>
+                                <p class="article-category">@article.Category</p>
+                                <p class="article-date">@article.CreatedAt.ToString("dd MMM yyyy")</p>
+                                <a href="@Url.Action("ReadArticle", "NewsArticles", new { id = article.PostID })" class="read-article">Read Full Article</a>
+                            </div>
+                        </article>
+                    }
+                }
+                else
+                {
+                    <p>No articles found.</p>
+                }
+            </div>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,0 +1,103 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - NewsPortalApp</title>
+    <script type="importmap"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-content">
+            <div class="header-left">
+                <a href="/" class="header-logo">DailyNeuzz</a>
+            </div>
+
+            <div class="header-center">
+                <div class="search-box">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Search..." onkeyup="searchFunction()" />
+                    <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="header-right">
+                <nav class="nav-links">
+                    <a  class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                    <a class="nav-link" asp-area="" asp-controller="About" asp-action="Index">About</a>
+                    <a class="nav-link" asp-area="" asp-controller="NewsArticles" asp-action="Index">News Articles</a>
+                </nav>
+
+
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <!-- User is logged in -->
+                    <div class="profile-dropdown">
+                        <div class="profile-icon">
+                            <img src="~/images/profile.jpg" alt="Profile" class="profile-image" />
+                            <div class="profile-placeholder">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="12" cy="7" r="4"></circle>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="dropdown-menu">
+                            <div class="user-info">
+                                @User.Identity.Name
+                            </div>
+                            <a href="/profile" class="dropdown-item">Profile</a>
+                            <a href="/logout" class="dropdown-item">Logout</a>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <!-- User is not logged in -->
+                    <a class="login-btn" asp-area="" asp-controller="Account" asp-action="SignUp">Login</a>
+                }
+            </div>
+        </div>
+    </header>
+    <div class="container">
+        <main role="main" class="pb-3">
+            @RenderBody()
+            @RenderSection("Scripts", required: false)
+        </main>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>About Us</h3>
+                    <p>We are committed to delivering the best service and information. Our mission is to enrich lives through exceptional digital experiences.</p>
+                </div>
+                <div class="footer-section">
+                    <h3>Quick Links</h3>
+                    <ul class="footer-links">
+                        <li><a href="/">Home</a></li>
+                        <li><a href="/about">About Us</a></li>
+                        <li><a href="/news">News Articles</a></li>
+                    </ul>
+                </div>
+                <div class="footer-section">
+                    <h3>Contact Us</h3>
+                    <address>
+                        1234 Street Name, City, Country<br>
+                        Email: ryadav943@gmail.com<br>
+                        Phone: +91234567890
+                    </address>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
