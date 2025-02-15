@@ -44,7 +44,10 @@ namespace NewsPortalApp.Controllers
             using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
                 conn.Open();
-                string query = "SELECT UserID, Username, FullName, Password FROM Users WHERE Email = @Email";
+                string query = @"
+    SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
+    FROM Users 
+    WHERE Email = @Email";
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("@Email", model.Email);
@@ -87,13 +90,16 @@ namespace NewsPortalApp.Controllers
                     }
                 }
 
-                string insertQuery = "INSERT INTO Users (Username, Email, Password, FullName) VALUES (@Username, @Email, @Password, @FullName)";
+                string insertQuery = @"
+                    INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath) 
+                    VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath)";
                 using (SqlCommand insertCmd = new SqlCommand(insertQuery, conn))
                 {
                     insertCmd.Parameters.AddWithValue("@Username", model.Username);
                     insertCmd.Parameters.AddWithValue("@Email", model.Email);
                     insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
                     insertCmd.Parameters.AddWithValue("@FullName", model.Username);
+                    insertCmd.Parameters.AddWithValue("@ProfileImagePath", "~/images/avatar.png");
                     insertCmd.ExecuteNonQuery();
                 }
             }
@@ -127,10 +133,36 @@ namespace NewsPortalApp.Controllers
 
         private void SetUserSession(SqlDataReader reader)
         {
-            HttpContext.Session.SetInt32("UserId", reader.GetInt32(0));
+            HttpContext.Session.SetInt32("UserId", reader.GetInt32(reader.GetOrdinal("UserID")));
             HttpContext.Session.SetString("Username", reader["Username"].ToString());
             HttpContext.Session.SetString("FullName", reader["FullName"].ToString());
-            HttpContext.Session.SetString("UserProfileImage", reader["ProfileImagePath"]?.ToString() ?? "~/images/avatar.png");
+            HttpContext.Session.SetString("Email", reader["Email"].ToString());
+
+            // ProfileImagePath कॉलम सुरक्षित रूप से चेक करें
+            if (reader.HasColumn("ProfileImagePath") && !reader.IsDBNull(reader.GetOrdinal("ProfileImagePath")))
+            {
+                HttpContext.Session.SetString("UserProfileImage", reader["ProfileImagePath"].ToString());
+            }
+            else
+            {
+                HttpContext.Session.SetString("UserProfileImage", "~/images/avatar.png");
+            }
+        }
+    }
+
+    // SQL DataReader Extension Method
+    public static class SqlDataReaderExtensions
+    {
+        public static bool HasColumn(this SqlDataReader reader, string columnName)
+        {
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                if (reader.GetName(i).Equals(columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

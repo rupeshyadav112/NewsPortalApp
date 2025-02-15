@@ -5,6 +5,62 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] - NewsPortalApp</title>
     <script type="importmap"></script>
+    <style>
+        .profile-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            box-shadow: 0px 8px 16px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            padding: 10px;
+            width: 200px;
+            z-index: 1;
+        }
+
+        .dropdown-item {
+            display: block;
+            padding: 8px;
+            color: black;
+            text-decoration: none;
+        }
+
+            .dropdown-item:hover {
+                background-color: #f1f1f1;
+            }
+
+        .profile-image {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+
+        h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .user-info p {
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+    </style>
+
+    <script>
+        function toggleDropdown() {
+            var dropdown = document.getElementById('dropdownMenu');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+    </script>
 </head>
 <body>
     <!-- Header -->
@@ -32,11 +88,11 @@
                 </nav>
 
 
-                @if (User.Identity.IsAuthenticated)
+                @if (Context.Session.GetString("Username") != null)
                 {
                     <!-- User is logged in -->
                     <div class="profile-dropdown">
-                        <div class="profile-icon">
+                        <div class="profile-icon" onclick="toggleDropdown()">
                             <img src="~/images/profile.jpg" alt="Profile" class="profile-image" />
                             <div class="profile-placeholder">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -45,9 +101,12 @@
                                 </svg>
                             </div>
                         </div>
-                        <div class="dropdown-menu">
+                        <div class="dropdown-menu" id="dropdownMenu">
+                            <h4>My Account</h4>
+                            <hr />
                             <div class="user-info">
-                                @User.Identity.Name
+                                <p>@Context.Session.GetString("Username")</p>
+                                <p> @Context.Session.GetString("Email")</p>
                             </div>
                             <a href="/profile" class="dropdown-item">Profile</a>
                             <a href="/logout" class="dropdown-item">Logout</a>
@@ -57,7 +116,7 @@
                 else
                 {
                     <!-- User is not logged in -->
-                    <a class="login-btn" asp-area="" asp-controller="Account" asp-action="SignUp">Login</a>
+                    <a class="login-btn" asp-controller="Account" asp-action="SignUp">Login</a>
                 }
             </div>
         </div>
