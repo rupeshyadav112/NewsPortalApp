@@ -24,5 +24,8 @@ namespace NewsPortalApp.Models
         public string FontStyle { get; set; }
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
+
+        // Navigation Properties
+        public ICollection<Comment> Comments { get; set; } // A post can have many comments
     }
 }

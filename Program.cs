@@ -47,5 +47,8 @@ app.UseAuthorization(); // Enable authorization
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
-
+app.MapControllerRoute(
+    name: "readarticles",
+    pattern: "ReadArticles/{id}",
+    defaults: new { controller = "ReadArticles", action = "Index" });
 app.Run();

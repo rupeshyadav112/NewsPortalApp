@@ -11,5 +11,9 @@
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public string? GoogleUserId { get; set; }
         public bool IsGoogleAccount { get; set; } = false;
+        // Navigation Properties
+        public ICollection<Comment> Comments { get; set; } // A user can make many comments
+        public ICollection<CommentLike> Likes { get; set; } // A user can like many comments
+
     }
 }
