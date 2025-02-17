@@ -9,6 +9,7 @@
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? ModifiedAt { get; set; }
         // Navigation Properties
+
         public Post Post { get; set; } // Each comment belongs to one post
         public User User { get; set; } // Each comment is made by one user
         public ICollection<CommentLike> Likes { get; set; } // A comment can have many likes

@@ -1,8 +1,5 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using NewsPortalApp.DataBase;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -10,19 +7,23 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container
 builder.Services.AddControllersWithViews();
 
-// Add DbContext
+// Database Configuration
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
+// Authentication Configuration
+builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.LoginPath = "/Account/SignIn";
+        options.AccessDeniedPath = "/Account/AccessDenied";
+    });
 
-// Configure session services
-builder.Services.AddDistributedMemoryCache(); // In-memory cache for session
+// Session Configuration
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(30); // Session timeout
-    options.Cookie.HttpOnly = true; // Security
-    options.Cookie.IsEssential = true; // Required for GDPR compliance
-
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
 });
 
 var app = builder.Build();
@@ -30,20 +31,18 @@ var app = builder.Build();
 // Configure the HTTP request pipeline
 if (!app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error"); // Use custom error page in production
-    app.UseHsts(); // Enable HTTP Strict Transport Security (HSTS)
+    app.UseExceptionHandler("/Home/Error");
+    app.UseHsts();
 }
 
-app.UseHttpsRedirection(); // Redirect HTTP requests to HTTPS
-app.UseStaticFiles(); // Enable serving static files (CSS, JS, images, etc.)
+app.UseHttpsRedirection();
+app.UseStaticFiles();
+app.UseRouting();
 
-app.UseRouting(); // Enable routing
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseSession();
 
-app.UseSession(); // Enable session support
-
-app.UseAuthorization(); // Enable authorization
-
-// Map controller routes
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");

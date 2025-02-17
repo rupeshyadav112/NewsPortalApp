@@ -3,6 +3,8 @@
     ViewData["Title"] = "Sign In";
 }
 <link rel="stylesheet" href="~/css/SignIn.css" />
+
+
 <div class="signup-container">
     <div class="form-header">
         <h1>DailyNeuzz</h1><br />
@@ -12,6 +14,7 @@
 
     <div class="signup-box">
         <form asp-action="SignIn" method="post">
+            @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
             <div class="form-group">

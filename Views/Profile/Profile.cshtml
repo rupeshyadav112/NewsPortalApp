@@ -1,0 +1,95 @@
+﻿@model NewsPortalApp.Models.UserProfile
+@{
+    ViewData["Title"] = "Profile";
+    var profileImage = Model.ProfileImagePath ?? "/images/avatar.png";
+}
+<link rel="stylesheet" href="~/css/Profile.css" />
+<div class="main-container">
+    <!-- Sidebar -->
+    <partial name="_Sidebar" />
+
+    <main class="main-content">
+        <div class="container">
+            <div class="profile-container">
+                <h2>Update Your Profile</h2>
+
+                @if (TempData["Message"] != null)
+                {
+                    <div class="message-panel @((bool)TempData["IsSuccess"] ? "success-message" : "error-message")">
+                        @TempData["Message"]
+                    </div>
+                }
+
+                <form asp-action="UpdateProfile" enctype="multipart/form-data" method="post">
+                    <!-- Profile Image Upload Section -->
+                    <div class="profile-upload" onclick="document.getElementById('ProfileImage').click();">
+                        <img src="@profileImage" class="profile-image" id="profileImagePreview" />
+                        <div class="upload-overlay">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Hidden File Input -->
+                    <input type="file" asp-for="ProfileImage" class="d-none" id="ProfileImage" onchange="previewImage(this)" />
+
+                    <!-- Full Name Field -->
+                    <div class="form-group">
+                        <label asp-for="FullName"></label>
+                        <input asp-for="FullName" class="form-control" />
+                        <span asp-validation-for="FullName" class="text-danger"></span>
+                    </div>
+
+                    <!-- Email Field -->
+                    <div class="form-group">
+                        <label asp-for="Email"></label>
+                        <input asp-for="Email" class="form-control" />
+                        <span asp-validation-for="Email" class="text-danger"></span>
+                    </div>
+
+                    <!-- Password Field -->
+                    @* @if (!Model.IsGoogleAccount) *@
+                    
+                        <div class="form-group">
+                            <label asp-for="Password"></label>
+                            <input asp-for="Password" class="form-control" />
+                            <span asp-validation-for="Password" class="text-danger"></span>
+                        </div>
+                    
+
+                    <!-- Form Actions -->
+                    <div class="form-actions">
+                        <button type="button" class="delete-btn" onclick="confirmDelete()">Delete Account</button>
+                        <div class="right-actions">
+                            <a asp-action="Logout" class="signout-btn">Sign Out</a>
+                            <button type="submit" class="update-btn">Update Profile</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+</div>
+
+@section Scripts {
+    <script>
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('profileImagePreview').src = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function confirmDelete() {
+            if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+                window.location.href = '@Url.Action("DeleteAccount", "Profile")';
+            }
+        }
+    </script>
+}

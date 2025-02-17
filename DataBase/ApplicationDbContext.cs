@@ -18,14 +18,15 @@ namespace NewsPortalApp.DataBase
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.Entity<User>()
+      .HasKey(u => u.UserID);
             // Configure relationships
             // Comment -> Post (Many-to-One)
             modelBuilder.Entity<Comment>()
-                .HasOne(c => c.Post)
-                .WithMany(p => p.Comments)
-                .HasForeignKey(c => c.PostID);
+                 .HasOne(c => c.Post)
+                 .WithMany(p => p.Comments)
+                 .HasForeignKey(c => c.PostID);
 
-            // Comment -> User (Many-to-One)
             modelBuilder.Entity<Comment>()
                 .HasOne(c => c.User)
                 .WithMany(u => u.Comments)

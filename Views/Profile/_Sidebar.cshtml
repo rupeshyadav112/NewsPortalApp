@@ -1,0 +1,64 @@
+﻿@*
+    For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
+*@
+<style>
+    /* Sidebar styles */
+    .sidebar {
+        width: 256px;
+        background-color: white;
+        border-right: 1px solid rgb(229, 231, 235);
+        position: fixed;
+        top: 73px;
+        bottom: 0;
+        padding: 1.5rem;
+    }
+
+    .sidebar-menu {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        color: rgb(75, 85, 99);
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+        .sidebar-link:hover, .sidebar-link.active {
+            background-color: rgb(243, 244, 246);
+            color: rgb(31, 41, 55);
+        }
+
+        .sidebar-link svg {
+            width: 20px;
+            height: 20px;
+        }
+</style>
+@{
+    
+    <aside class="sidebar">
+        <nav class="sidebar-menu">
+            <a asp-controller="Profile" asp-action="Index" class="sidebar-link active">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                Profile
+            </a>
+            <a asp-controller="Account" asp-action="Logout" class="sidebar-link">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                    <polyline points="16 17 21 12 16 7"></polyline>
+                    <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Logout
+            </a>
+        </nav>
+    </aside>
+}
