@@ -122,12 +122,14 @@ namespace NewsPortalApp.Controllers
         }
 
         // सर्कुलर प्रोग्रेस बार के लिए अपडेटेड लॉजिक
-        public double GetCircleOffset(int value, int maxValue)
+       
+    public double GetCircleOffset(int value, int maxValue)
         {
             double percentage = maxValue == 0 ? 0 : (double)value / maxValue;
             double circumference = 2 * Math.PI * 70; // 2πr, where r = 70
             return circumference * (1 - percentage);
         }
+
 
         private DashboardStats LoadDashboardStats()
         {

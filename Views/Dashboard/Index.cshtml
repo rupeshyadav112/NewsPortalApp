@@ -32,6 +32,7 @@
     <div class="main-content">
         <!-- Stats Container -->
         <div class="stats-container">
+            
             <!-- Users Card -->
             <div class="stat-card">
                 <div class="stat-header">
@@ -40,9 +41,9 @@
                 </div>
                 <div class="stat-circle">
                     <svg class="progress-ring" width="160" height="160">
-                        <circle class="progress-ring-circle" stroke="#0000FF" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
+                        <circle class="progress-ring-circle" stroke="#e5e7eb" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
                         <circle class="progress-ring-circle" stroke="#0000FF" stroke-width="8" fill="transparent" r="70" cx="80" cy="80"
-                                style="--offset: @GetCircleOffset(dashboardStats.TotalUsers, dashboardStats.TotalUsers)" />
+                                style="--offset: @GetCircleOffset(dashboardStats.TotalUsers, 100)" />
                     </svg>
                     <div class="stat-value">@dashboardStats.TotalUsers</div>
                 </div>
@@ -63,7 +64,7 @@
                         <circle class="progress-ring-circle" stroke="#FF8C00" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
                         <!-- ऑरेंज कलर -->
                         <circle class="progress-ring-circle" stroke="#FF8C00" stroke-width="8" fill="transparent" r="70" cx="80" cy="80"
-                                style="--offset: @GetCircleOffset(dashboardStats.TotalComments, dashboardStats.TotalUsers)" />
+                                style="--offset: @GetCircleOffset(dashboardStats.TotalComments, 100)"  />
                     </svg>
                     <div class="stat-value">@dashboardStats.TotalComments</div>
                 </div>
@@ -83,7 +84,7 @@
                     <svg class="progress-ring" width="160" height="160">
                         <circle class="progress-ring-circle" stroke="#e5e7eb" stroke-width="8" fill="transparent" r="70" cx="80" cy="80" />
                         <circle class="progress-ring-circle" stroke="#22c55e" stroke-width="8" fill="transparent" r="70" cx="80" cy="80"
-                                style="--offset: @GetCircleOffset(dashboardStats.TotalPosts, dashboardStats.TotalUsers)" />
+                                style="--offset: @GetCircleOffset(dashboardStats.TotalPosts, 100)" />
                     </svg>
                     <div class="stat-value">@dashboardStats.TotalPosts</div>
                 </div>
