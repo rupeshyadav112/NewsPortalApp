@@ -108,8 +108,8 @@
                                 <p>@Context.Session.GetString("Username")</p>
                                 <p> @Context.Session.GetString("Email")</p>
                             </div>
-                            <a href="/profile" class="dropdown-item">Profile</a>
-                            <a href="/logout" class="dropdown-item">Logout</a>
+                            <a asp-controller="Profile" asp-action="Index" class="dropdown-item">Profile</a>
+                            <a asp-controller="Account" asp-action="Logout" method="post" class="dropdown-item">Logout</a>
                         </div>
                     </div>
                 }

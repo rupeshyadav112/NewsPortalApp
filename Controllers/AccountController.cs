@@ -33,14 +33,20 @@ namespace NewsPortalApp.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult SignIn(SignInViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+            {
+                return View(model);
+            }
 
             if (model.Email == "ryadav943@rku.ac.in" && model.Password == "Admin")
             {
-                SetAdminSession();
-                return RedirectToAction("Dashboard", "Home");
-            }
+                SetAdminSession(); // Assuming this sets up your authentication session
 
+                // Corrected RedirectToAction:  "ActionName", "ControllerName"
+                return RedirectToAction("Index", "Dashboard"); //  "Index" is the default action for a view
+
+            }
+           
             using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
             {
                 conn.Open();
@@ -61,8 +67,9 @@ namespace NewsPortalApp.Controllers
                     }
                 }
             }
-            ModelState.AddModelError("", "Invalid credentials");
-            return View(model);
+            // Handle incorrect credentials (important!)
+            ModelState.AddModelError("", "Invalid email or password."); // Add error to the model
+            return View(model); // Return to the login view with the error message
         }
 
         // GET: /Account/SignUp

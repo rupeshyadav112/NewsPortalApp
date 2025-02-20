@@ -445,7 +445,7 @@ footer {
     background: #1f2937;
     color: white;
     padding: 4rem 2rem;
-    display:none;
+    visibility: hidden;
 }
 
 .footer-content {

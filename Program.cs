@@ -44,6 +44,11 @@ app.UseAuthorization();
 app.UseSession();
 
 app.MapControllerRoute(
+    name: "profile",
+    pattern: "Profile/{action=Index}/{id?}",
+    defaults: new { controller = "Profile" });
+
+app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 app.MapControllerRoute(

@@ -1,8 +1,9 @@
 ﻿using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using NewsPortalApp.Models;
 using Microsoft.Data.SqlClient;
+using NewsPortalApp.Models;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
@@ -14,44 +15,68 @@ using Microsoft.AspNetCore.Http;
 namespace NewsPortalApp.Controllers
 {
     [Authorize]
+    [Route("[controller]")]
     public class ProfileController : Controller
     {
         private readonly IWebHostEnvironment _env;
         private readonly IConfiguration _config;
         private readonly ILogger<ProfileController> _logger;
+        private readonly UserManager<IdentityUser> _userManager;
 
         public ProfileController(
             IWebHostEnvironment env,
             IConfiguration config,
+            UserManager<IdentityUser> userManager,
             ILogger<ProfileController> logger)
         {
             _env = env;
             _config = config;
+            _userManager = userManager;
             _logger = logger;
         }
 
         // GET: Profile
+        [HttpGet("")]
+        [HttpGet("Index")]
         public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var model = await GetUserProfileAsync(userId);
-            return View("Profile", model);
+            return View(model);
         }
 
-        // POST: Profile/UpdateProfile
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateProfile(UserProfile model)
         {
             if (!ModelState.IsValid)
             {
-                return View("Index", model);
+                return View("Profile", model);
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId);
+            var isGoogleAccount = await IsGoogleAccountAsync(userId);
 
             try
             {
+                // Password Update
+                if (!isGoogleAccount && !string.IsNullOrEmpty(model.Password))
+                {
+                    var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                    var result = await _userManager.ResetPasswordAsync(user, token, model.Password);
+
+                    if (!result.Succeeded)
+                    {
+                        foreach (var error in result.Errors)
+                        {
+                            ModelState.AddModelError("Password", error.Description);
+                        }
+                        return View("Profile", model);
+                    }
+                }
+
+                // Profile Image Upload
                 if (model.ProfileImage != null)
                 {
                     model.ProfileImagePath = await UploadImageAsync(model.ProfileImage);
@@ -64,43 +89,50 @@ namespace NewsPortalApp.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
-                TempData["Message"] = "An error occurred while updating your profile. Please try again.";
+                _logger.LogError(ex, "Error updating profile");
+                TempData["Message"] = $"Error: {ex.Message}";
                 TempData["IsSuccess"] = false;
             }
 
             return RedirectToAction("Index");
         }
 
-        // POST: Profile/DeleteAccount
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteAccount()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = await _userManager.FindByIdAsync(userId);
 
             try
             {
+                // Delete from ASP.NET Identity
+                var result = await _userManager.DeleteAsync(user);
+                if (!result.Succeeded)
+                {
+                    throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
+                }
+
+                // Delete from custom Users table
                 await DeleteUserAsync(userId);
+
                 return await Logout();
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error deleting account for user {UserId}", userId);
-                TempData["Message"] = "An error occurred while deleting your account. Please try again.";
-                TempData["IsSuccess"] = false;
+                _logger.LogError(ex, "Account deletion failed");
+                TempData["Message"] = $"Delete failed: {ex.Message}";
                 return RedirectToAction("Index");
             }
         }
 
-        // GET: Profile/Logout
         public async Task<IActionResult> Logout()
         {
             await HttpContext.SignOutAsync();
             return RedirectToAction("Index", "Home");
         }
 
-        // Helper Methods
+        #region Helper Methods
 
         private async Task<UserProfile> GetUserProfileAsync(string userId)
         {
@@ -111,26 +143,28 @@ namespace NewsPortalApp.Controllers
                 using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
                 await connection.OpenAsync();
 
-                string query = @"SELECT Username, FullName, Email, ProfileImagePath, IsGoogleAccount 
-                               FROM Users 
-                               WHERE UserID = @UserID";
+                const string query = @"
+                    SELECT Username, FullName, Email, 
+                           ProfileImagePath, IsGoogleAccount 
+                    FROM Users 
+                    WHERE UserID = @UserID";
 
-                await using var command = new SqlCommand(query, connection);
+                using var command = new SqlCommand(query, connection);
                 command.Parameters.AddWithValue("@UserID", userId);
 
-                await using var reader = await command.ExecuteReaderAsync();
+                using var reader = await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
                     profile.Username = reader["Username"]?.ToString();
                     profile.FullName = reader["FullName"]?.ToString();
                     profile.Email = reader["Email"]?.ToString();
                     profile.ProfileImagePath = reader["ProfileImagePath"]?.ToString();
-                    
+                    //profile.IsGoogleAccount = Convert.ToBoolean(reader["IsGoogleAccount"]);
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error fetching profile for user {UserId}", userId);
+                _logger.LogError(ex, "Error fetching profile");
             }
 
             return profile;
@@ -138,64 +172,59 @@ namespace NewsPortalApp.Controllers
 
         private async Task UpdateUserProfileAsync(string userId, UserProfile model)
         {
-            try
-            {
-                using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
-                await connection.OpenAsync();
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            await connection.OpenAsync();
 
-                string query = @"UPDATE Users 
-                               SET Username = @Username,
-                                   FullName = @FullName, 
-                                   Email = @Email, 
-                                   ProfileImagePath = @ProfileImagePath 
-                               WHERE UserID = @UserID";
+            const string query = @"
+                UPDATE Users 
+                SET Username = @Username,
+                    FullName = @FullName, 
+                    Email = @Email, 
+                    ProfileImagePath = @ProfileImagePath 
+                WHERE UserID = @UserID";
 
-                await using var command = new SqlCommand(query, connection);
-                command.Parameters.AddWithValue("@UserID", userId);
-                command.Parameters.AddWithValue("@Username", model.Username);
-                command.Parameters.AddWithValue("@FullName", model.FullName);
-                command.Parameters.AddWithValue("@Email", model.Email);
-                command.Parameters.AddWithValue("@ProfileImagePath", model.ProfileImagePath ?? (object)DBNull.Value);
+            using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserID", userId);
+            command.Parameters.AddWithValue("@Username", model.Username);
+            command.Parameters.AddWithValue("@FullName", model.FullName);
+            command.Parameters.AddWithValue("@Email", model.Email);
+            command.Parameters.AddWithValue("@ProfileImagePath",
+                string.IsNullOrEmpty(model.ProfileImagePath) ? DBNull.Value : model.ProfileImagePath);
 
-                await command.ExecuteNonQueryAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
-                throw;
-            }
+            await command.ExecuteNonQueryAsync();
+        }
+
+        private async Task<bool> IsGoogleAccountAsync(string userId)
+        {
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            await connection.OpenAsync();
+
+            const string query = "SELECT IsGoogleAccount FROM Users WHERE UserID = @UserID";
+            using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserID", userId);
+
+            return Convert.ToBoolean(await command.ExecuteScalarAsync());
         }
 
         private async Task<string> UploadImageAsync(IFormFile file)
         {
             if (file == null || file.Length == 0)
-            {
-                throw new ArgumentException("No file uploaded.");
-            }
+                throw new ArgumentException("No file selected");
 
-            // Validate file size (max 5MB)
             if (file.Length > 5 * 1024 * 1024)
-            {
-                throw new ArgumentException("File size must be less than 5MB.");
-            }
+                throw new ArgumentException("File size exceeds 5MB limit");
 
-            // Validate file extension
             var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
             var fileExtension = Path.GetExtension(file.FileName).ToLower();
             if (!allowedExtensions.Contains(fileExtension))
-            {
-                throw new ArgumentException("Only JPG, JPEG, and PNG files are allowed.");
-            }
+                throw new ArgumentException("Invalid file type. Allowed: JPG, JPEG, PNG");
 
-            // Create upload directory if it doesn't exist
             var uploadsPath = Path.Combine(_env.WebRootPath, "uploads", "profile-images");
             Directory.CreateDirectory(uploadsPath);
 
-            // Generate unique file name
             var fileName = $"{Guid.NewGuid()}{fileExtension}";
             var filePath = Path.Combine(uploadsPath, fileName);
 
-            // Save file
             await using var stream = new FileStream(filePath, FileMode.Create);
             await file.CopyToAsync(stream);
 
@@ -204,22 +233,39 @@ namespace NewsPortalApp.Controllers
 
         private async Task DeleteUserAsync(string userId)
         {
-            try
-            {
-                using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
-                await connection.OpenAsync();
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            await connection.OpenAsync();
 
-                string query = "DELETE FROM Users WHERE UserID = @UserID";
-                await using var command = new SqlCommand(query, connection);
-                command.Parameters.AddWithValue("@UserID", userId);
+            const string query = "DELETE FROM Users WHERE UserID = @UserID";
+            using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserID", userId);
 
-                await command.ExecuteNonQueryAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error deleting user {UserId}", userId);
-                throw;
-            }
+            await command.ExecuteNonQueryAsync();
         }
+
+        #endregion
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
