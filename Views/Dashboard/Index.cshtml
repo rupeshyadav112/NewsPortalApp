@@ -21,12 +21,19 @@
    <div class="sidebar">
     <ul class="sidebar-menu">
         <li><a href="/Dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
-        <li><a href="/Profile"><i class="fas fa-user"></i> Profile</a></li>
-        <li><a href="/CreatePost"><i class="fas fa-plus"></i> Create Post</a></li>
+        <li><a href="@Url.Action("Index", "Profile")"><i class="fas fa-user"></i> Profile</a></li> 
+        <li><a href="@Url.Action("Create", "Post")"><i class="fas fa-plus"></i> Create Post</a></li>
         <li><a href="/YourArticles"><i class="fas fa-newspaper"></i> Your Articles</a></li>
         <li><a href="/AllUsers"><i class="fas fa-users"></i> All Users</a></li>
         <li><a href="/AllComments"><i class="fas fa-comments"></i> All Comments</a></li>
-        <li><a href="/Logout"><i class="fas fa-sign-out-alt"></i> Logout</a></li>  </ul>
+
+        <li>
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                @Html.AntiForgeryToken()
+                <a href="javascript:;" onclick="document.getElementById('logoutForm').submit();"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </form>
+        </li>
+    </ul>
 </div>
 
     <div class="main-content">

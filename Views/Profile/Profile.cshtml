@@ -2,10 +2,11 @@
 @{
     ViewData["Title"] = "Profile";
     var profileImage = Model?.ProfileImagePath ?? "/images/avatar.png";
-    // var isGoogleAccount = Model?.IsGoogleAccount ?? false;
 }
+
 <link rel="stylesheet" href="~/css/Profile.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+
 <div class="main-container">
     <partial name="_Sidebar" />
 
@@ -50,15 +51,12 @@
                             <span asp-validation-for="Email" class="text-danger"></span>
                         </div>
 
-                        @* @if (!isGoogleAccount) *@
-
                         <div class="form-group">
                             <label asp-for="Password" class="form-label">New Password (Optional)</label>
                             <input asp-for="Password" type="password" class="form-control"
                                    placeholder="Minimum 6 characters" />
                             <span asp-validation-for="Password" class="text-danger"></span>
                         </div>
-
                     </div>
 
                     <div class="form-actions">
@@ -73,11 +71,11 @@
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Update Profile
                             </button>
-                            <form asp-action="Logout" method="post">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('logoutForm').submit();">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </button>
+                            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm" style="display:none;">
                                 @Html.AntiForgeryToken()
-                                <button type="submit" class="btn btn-secondary">
-                                    <i class="fas fa-sign-out-alt"></i> Logout
-                                </button>
                             </form>
                         </div>
                     </div>

@@ -11,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using System;
+using System.Linq;
 
 namespace NewsPortalApp.Controllers
 {
@@ -35,14 +37,13 @@ namespace NewsPortalApp.Controllers
             _logger = logger;
         }
 
-        // GET: Profile
         [HttpGet("")]
         [HttpGet("Index")]
         public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             var model = await GetUserProfileAsync(userId);
-            return View(model);
+            return View("Profile", model); // Specify "Profile" to find Profile.cshtml
         }
 
         [HttpPost]
@@ -51,7 +52,7 @@ namespace NewsPortalApp.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return View("Profile", model);
+                return View("Profile", model); // Specify "Profile" here as well
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -60,9 +61,15 @@ namespace NewsPortalApp.Controllers
 
             try
             {
-                // Password Update
+                // Password Update (with basic complexity check - improve this)
                 if (!isGoogleAccount && !string.IsNullOrEmpty(model.Password))
                 {
+                    if (model.Password.Length < 6)
+                    {
+                        ModelState.AddModelError("Password", "Password must be at least 6 characters.");
+                        return View("Profile", model);
+                    }
+
                     var token = await _userManager.GeneratePasswordResetTokenAsync(user);
                     var result = await _userManager.ResetPasswordAsync(user, token, model.Password);
 
@@ -76,10 +83,18 @@ namespace NewsPortalApp.Controllers
                     }
                 }
 
-                // Profile Image Upload
+                // Profile Image Upload (with improved error handling)
                 if (model.ProfileImage != null)
                 {
-                    model.ProfileImagePath = await UploadImageAsync(model.ProfileImage);
+                    try
+                    {
+                        model.ProfileImagePath = await UploadImageAsync(model.ProfileImage);
+                    }
+                    catch (ArgumentException ex)
+                    {
+                        ModelState.AddModelError("ProfileImage", ex.Message);
+                        return View("Profile", model);
+                    }
                 }
 
                 await UpdateUserProfileAsync(userId, model);
@@ -87,10 +102,22 @@ namespace NewsPortalApp.Controllers
                 TempData["Message"] = "Profile updated successfully!";
                 TempData["IsSuccess"] = true;
             }
+            catch (ArgumentException ex)
+            {
+                _logger.LogError(ex, "Error updating profile: " + ex.Message);
+                TempData["Message"] = "Error: " + ex.Message;
+                TempData["IsSuccess"] = false;
+            }
+            catch (SqlException ex)
+            {
+                _logger.LogError(ex, "Database error updating profile: " + ex.Message);
+                TempData["Message"] = "A database error occurred. Please try again later.";
+                TempData["IsSuccess"] = false;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating profile");
-                TempData["Message"] = $"Error: {ex.Message}";
+                _logger.LogError(ex, "Error updating profile: " + ex.Message);
+                TempData["Message"] = "An error occurred. Please try again later.";
                 TempData["IsSuccess"] = false;
             }
 
@@ -106,14 +133,12 @@ namespace NewsPortalApp.Controllers
 
             try
             {
-                // Delete from ASP.NET Identity
                 var result = await _userManager.DeleteAsync(user);
                 if (!result.Succeeded)
                 {
                     throw new Exception(string.Join(", ", result.Errors.Select(e => e.Description)));
                 }
 
-                // Delete from custom Users table
                 await DeleteUserAsync(userId);
 
                 return await Logout();
@@ -144,9 +169,9 @@ namespace NewsPortalApp.Controllers
                 await connection.OpenAsync();
 
                 const string query = @"
-                    SELECT Username, FullName, Email, 
-                           ProfileImagePath, IsGoogleAccount 
-                    FROM Users 
+                    SELECT Username, FullName, Email,
+                           ProfileImagePath, IsGoogleAccount
+                    FROM Users
                     WHERE UserID = @UserID";
 
                 using var command = new SqlCommand(query, connection);
@@ -159,7 +184,6 @@ namespace NewsPortalApp.Controllers
                     profile.FullName = reader["FullName"]?.ToString();
                     profile.Email = reader["Email"]?.ToString();
                     profile.ProfileImagePath = reader["ProfileImagePath"]?.ToString();
-                    //profile.IsGoogleAccount = Convert.ToBoolean(reader["IsGoogleAccount"]);
                 }
             }
             catch (Exception ex)
@@ -176,11 +200,11 @@ namespace NewsPortalApp.Controllers
             await connection.OpenAsync();
 
             const string query = @"
-                UPDATE Users 
+                UPDATE Users
                 SET Username = @Username,
-                    FullName = @FullName, 
-                    Email = @Email, 
-                    ProfileImagePath = @ProfileImagePath 
+                    FullName = @FullName,
+                    Email = @Email,
+                    ProfileImagePath = @ProfileImagePath
                 WHERE UserID = @UserID";
 
             using var command = new SqlCommand(query, connection);
@@ -203,7 +227,8 @@ namespace NewsPortalApp.Controllers
             using var command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@UserID", userId);
 
-            return Convert.ToBoolean(await command.ExecuteScalarAsync());
+            var result = await command.ExecuteScalarAsync();
+            return result != DBNull.Value ? Convert.ToBoolean(result) : false;
         }
 
         private async Task<string> UploadImageAsync(IFormFile file)
@@ -246,26 +271,3 @@ namespace NewsPortalApp.Controllers
         #endregion
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
