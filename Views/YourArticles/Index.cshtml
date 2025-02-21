@@ -1,0 +1,68 @@
+﻿@model List<NewsPortalApp.Models.Post>
+
+@{
+    ViewData["Title"] = "Your Articles";
+}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+<link rel="stylesheet" href="~/css/YourArticles.css" />
+<style>
+    
+</style>
+<div class="sidebar">
+    <ul class="sidebar-menu">
+        <li><a href="/Dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li><a href="@Url.Action("Index", "Profile")"><i class="fas fa-user"></i> Profile</a></li> 
+        <li><a href="@Url.Action("Create", "Post")"><i class="fas fa-plus"></i> Create Post</a></li>
+        <li><a href="/YourArticles"><i class="fas fa-newspaper"></i> Your Articles</a></li>
+        <li><a href="@Url.Action("AllUsers", "YourArticles")"><i class="fas fa-users"></i> All Users</a></li>
+        <li><a href="/AllComments"><i class="fas fa-comments"></i> All Comments</a></li>
+
+        <li>
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                @Html.AntiForgeryToken()
+                <a href="javascript:;" onclick="document.getElementById('logoutForm').submit();"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </form>
+        </li>
+    </ul>
+</div>
+
+<!-- Main Content -->
+<div class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+    <div class="px-4 py-6 sm:px-0">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead>
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date updated</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Post image</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Post title</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var post in Model)
+                    {
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">@post.CreatedAt.ToString("dd/MM/yyyy")</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                @if (!string.IsNullOrEmpty(post.ImagePath))
+                                {
+                                    <img src="@post.ImagePath" alt="Post Image" class="post-image" />
+                                }
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@post.Title</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">@post.Category</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <a href="/YourArticles/Edit/@post.PostID" class="edit-button">Edit</a>
+                                <button class="delete-button" onclick="return confirm('Are you sure you want to delete this post?');">Delete</button>
+
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
