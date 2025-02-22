@@ -6,6 +6,7 @@
         public int PostID { get; set; }
         public int UserID { get; set; }
         public string CommentText { get; set; }
+        public int NumberOfLikes { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? ModifiedAt { get; set; }
         // Navigation Properties

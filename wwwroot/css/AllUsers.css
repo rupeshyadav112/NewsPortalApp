@@ -230,7 +230,7 @@ header {
 
 /* Main Content */
 .main-content {
-    margin-left: 250px;
+    margin-left: 350px;
     margin-top: 70px;
     padding: 2rem;
 }
@@ -369,6 +369,9 @@ header {
     width: 100%;
     border-collapse: collapse;
 }
+    .tblsize{
+        width:120%;
+    }
 
     .table th, .table td {
         padding: 1rem;

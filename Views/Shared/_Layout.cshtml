@@ -52,7 +52,6 @@
             margin: 5px 0;
             font-size: 14px;
         }
-
     </style>
 
     <script>
@@ -82,18 +81,17 @@
 
             <div class="header-right">
                 <nav class="nav-links">
-                    <a  class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
+                    <a class="nav-link" asp-area="" asp-controller="Home" asp-action="Index">Home</a>
                     <a class="nav-link" asp-area="" asp-controller="About" asp-action="Index">About</a>
                     <a class="nav-link" asp-area="" asp-controller="NewsArticles" asp-action="Index">News Articles</a>
                 </nav>
-
 
                 @if (Context.Session.GetString("Username") != null)
                 {
                     <!-- User is logged in -->
                     <div class="profile-dropdown">
                         <div class="profile-icon" onclick="toggleDropdown()">
-                            <img src="~/images/profile.jpg" alt="Profile" class="profile-image" />
+                            @* <img src="~/images/profile.jpg" alt="Profile" class="profile-image" /> *@
                             <div class="profile-placeholder">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
@@ -106,7 +104,7 @@
                             <hr />
                             <div class="user-info">
                                 <p>@Context.Session.GetString("Username")</p>
-                                <p> @Context.Session.GetString("Email")</p>
+                                <p>@Context.Session.GetString("Email")</p>
                             </div>
                             <a asp-controller="Profile" asp-action="Index" class="dropdown-item">Profile</a>
                             <a asp-controller="Account" asp-action="Logout" method="post" class="dropdown-item">Logout</a>
@@ -120,6 +118,7 @@
             </div>
         </div>
     </header>
+
     <div class="container">
         <main role="main" class="pb-3">
             @RenderBody()
@@ -127,32 +126,37 @@
         </main>
     </div>
 
-    <footer>
-        <div class="container">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h3>About Us</h3>
-                    <p>We are committed to delivering the best service and information. Our mission is to enrich lives through exceptional digital experiences.</p>
-                </div>
-                <div class="footer-section">
-                    <h3>Quick Links</h3>
-                    <ul class="footer-links">
-                        <li><a href="/">Home</a></li>
-                        <li><a href="/about">About Us</a></li>
-                        <li><a href="/news">News Articles</a></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h3>Contact Us</h3>
-                    <address>
-                        1234 Street Name, City, Country<br>
-                        Email: ryadav943@gmail.com<br>
-                        Phone: +91234567890
-                    </address>
+    <!-- Footer (Conditional) -->
+    @if (ViewData["ShowFooter"] as bool? ?? true)
+    {
+        <footer>
+            <div class="container">
+                <div class="footer-content">
+                    <div class="footer-section">
+                        <h3>About Us</h3>
+                        <p>We are committed to delivering the best service and information. Our mission is to enrich lives through exceptional digital experiences.</p>
+                    </div>
+                    <div class="footer-section">
+                        <h3>Quick Links</h3>
+                        <ul class="footer-links">
+                            <li><a href="/">Home</a></li>
+                            <li><a href="/about">About Us</a></li>
+                            <li><a href="/news">News Articles</a></li>
+                        </ul>
+                    </div>
+                    <div class="footer-section">
+                        <h3>Contact Us</h3>
+                        <address>
+                            1234 Street Name, City, Country<br>
+                            Email: ryadav943@gmail.com<br>
+                            Phone: +91234567890
+                        </address>
+                    </div>
                 </div>
             </div>
-        </div>
-    </footer>
+        </footer>
+    }
+
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>

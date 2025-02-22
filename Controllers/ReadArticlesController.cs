@@ -1,7 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using NewsPortalApp.DataBase;
 using NewsPortalApp.Models;
-using System;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +26,17 @@ namespace NewsPortalApp.Controllers
             {
                 return NotFound();
             }
+
+            // Pass categories to the view
+            ViewBag.Categories = new List<string>
+            {
+                "Technology",
+                "Health",
+                "Sports",
+                "Entertainment",
+                "World News",
+                "Local News"
+            };
 
             ViewBag.RecentArticles = _context.Posts
                 .Where(p => p.PostID != id)

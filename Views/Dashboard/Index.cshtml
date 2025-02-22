@@ -1,6 +1,7 @@
 ﻿@model NewsPortalApp.Models.DashboardStats
 @{
     ViewData["Title"] = "Dashboard - NewsPortalApp";
+    ViewBag.ShowFooter = false;
     var dashboardStats = ViewBag.DashboardStats as NewsPortalApp.Models.DashboardStats;
     var recentUsers = ViewBag.RecentUsers as List<NewsPortalApp.Models.RecentUser>;
     var recentPosts = ViewBag.RecentPosts as List<NewsPortalApp.Models.RecentPost>;
@@ -25,7 +26,7 @@
         <li><a href="@Url.Action("Create", "Post")"><i class="fas fa-plus"></i> Create Post</a></li>
         <li><a href="/YourArticles"><i class="fas fa-newspaper"></i> Your Articles</a></li>
             <li><a href="@Url.Action("AllUsers", "YourArticles")"><i class="fas fa-users"></i> All Users</a></li>
-        <li><a href="/AllComments"><i class="fas fa-comments"></i> All Comments</a></li>
+            <li><a href="/YourArticles/AllComment"><i class="fas fa-comments"></i> All Comments</a></li>
 
         <li>
             <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
@@ -108,7 +109,7 @@
             <div class="table-container">
                 <div class="table-header">
                     <h2 class="section-title">Recent Users</h2>
-                    <a href="/AllUsers" class="see-all-btn">See All</a>
+                    <a href="@Url.Action("AllUsers", "YourArticles")" class="see-all-btn">See All</a>
                 </div>
                 <table class="table">
                     <thead>
@@ -172,7 +173,7 @@
             <div class="table-container">
                 <div class="table-header">
                     <h2 class="section-title">Recent Comments</h2>
-                    <a href="/AllComments" class="see-all-btn">See All</a>
+                    <a href="/YourArticles/AllComment" class="see-all-btn">See All</a>
                 </div>
                 <table class="table">
                     <thead>

@@ -1,0 +1,63 @@
+﻿@model IEnumerable<NewsPortalApp.Models.Comment>
+
+@{
+    ViewData["Title"] = "All Comments";
+    ViewBag.ShowFooter = false;
+}
+
+<link rel="stylesheet" href="~/css/AllComments.css" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
+
+<!-- Sidebar -->
+<div class="sidebar">
+    <ul class="sidebar-menu">
+        <li><a href="/Dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li><a href="@Url.Action("Index", "Profile")"><i class="fas fa-user"></i> Profile</a></li>
+        <li><a href="@Url.Action("Create", "Post")"><i class="fas fa-plus"></i> Create Post</a></li>
+        <li><a href="/YourArticles"><i class="fas fa-newspaper"></i> Your Articles</a></li>
+        <li><a href="@Url.Action("AllUsers", "YourArticles")"><i class="fas fa-users"></i> All Users</a></li>
+        <li><a href="/YourArticles/AllComment"><i class="fas fa-comments"></i> All Comments</a></li>
+        <li>
+            <form asp-controller="Account" asp-action="Logout" method="post" id="logoutForm">
+                @Html.AntiForgeryToken()
+                <a href="javascript:;" onclick="document.getElementById('logoutForm').submit();"><i class="fas fa-sign-out-alt"></i> Logout</a>
+            </form>
+        </li>
+    </ul>
+</div>
+
+<!-- Main Content -->
+<div class="main-content">
+
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Date Updated</th>
+                <th>Comment</th>
+                <th>Number of Likes</th>
+                <th>Post Id</th>
+                <th>User Id</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var comment in Model)
+            {
+                <tr>
+                    <td>@(comment.ModifiedAt?.ToString("MM/dd/yyyy") ?? "N/A")</td>
+                    <td>@comment.CommentText</td>
+                    <td>@comment.NumberOfLikes</td> <!-- Assuming you have a NumberOfLikes property -->
+                    <td>@comment.PostID</td>
+                    <td>@comment.UserID</td>
+                    <td>
+                        <form asp-action="DeleteComment" asp-route-id="@comment.CommentID" method="post" onsubmit="return confirm('Are you sure you want to delete this comment?');">
+                            <button type="submit" class="btn btn-danger btn-sm">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

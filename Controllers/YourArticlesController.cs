@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.AspNetCore.Hosting;
 using System.IO;
 using Microsoft.AspNetCore.Http;
+using System;
 
 namespace NewsPortalApp.Controllers
 {
@@ -190,6 +191,73 @@ namespace NewsPortalApp.Controllers
                 "Local News"
             };
             return View(post);
+        }
+
+        // GET: YourArticles/AllComment
+        public IActionResult AllComment()
+        {
+            var comments = LoadComments();
+            return View(comments);
+        }
+
+        // Load comments from the database
+        private List<Comment> LoadComments()
+        {
+            var comments = new List<Comment>();
+
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    var cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt FROM Comments ORDER BY CreatedAt DESC", conn);
+                    conn.Open();
+                    var reader = cmd.ExecuteReader();
+
+                    while (reader.Read())
+                    {
+                        comments.Add(new Comment
+                        {
+                            CommentID = reader.GetInt32(0),
+                            PostID = reader.GetInt32(1),
+                            UserID = reader.GetInt32(2),
+                            CommentText = reader.GetString(3),
+                            NumberOfLikes = reader.GetInt32(4),
+                            CreatedAt = reader.GetDateTime(5),
+                            ModifiedAt = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6)
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error (e.g., using a logging framework)
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+
+            return comments;
+        }
+
+        // POST: YourArticles/DeleteComment/{id}
+        [HttpPost]
+        public IActionResult DeleteComment(int id)
+        {
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID", conn);
+                    cmd.Parameters.AddWithValue("@CommentID", id);
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log the error (e.g., using a logging framework)
+                Console.WriteLine("An error occurred: " + ex.Message);
+            }
+
+            return RedirectToAction("AllComment");
         }
     }
 }
