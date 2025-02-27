@@ -16,18 +16,24 @@ namespace NewsPortalApp.Controllers
             _context = context;
         }
 
-        // GET: ReadArticles/Index/{id}
+        // GET: ReadArticles/Index/{id} - पोस्ट और कमेंट्स लोड करना
         public IActionResult Index(int id)
         {
+            // पोस्ट को कमेंट्स और यूज़र डिटेल्स के साथ लोड करना
             var post = _context.Posts
                 .Include(p => p.Comments)
-                    .ThenInclude(c => c.User)
+                    .ThenInclude(c => c.User) // कमेंट्स के यूज़र डिटेल्स
                 .Include(p => p.Comments)
-                    .ThenInclude(c => c.Likes)
+                    .ThenInclude(c => c.Likes) // कमेंट्स के लाइक्स
                 .FirstOrDefault(p => p.PostID == id);
 
-            if (post == null) return NotFound();
+            if (post == null)
+            {
+                Console.WriteLine($"Post with ID {id} not found");
+                return NotFound();
+            }
 
+            // हाल के आर्टिकल्स लोड करना
             ViewBag.RecentArticles = _context.Posts
                 .Where(p => p.PostID != id)
                 .OrderByDescending(p => p.CreatedAt)
@@ -37,18 +43,17 @@ namespace NewsPortalApp.Controllers
             return View(post);
         }
 
-        // DTO for comment submission
+        // DTO for comment submission - कमेंट डेटा के लिए
         public class CommentDto
         {
             public string CommentText { get; set; }
         }
 
-        // POST: ReadArticles/AddComment
+        // POST: ReadArticles/AddComment - नया कमेंट जोड़ना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddComment(int postId, [FromBody] CommentDto commentDto)
         {
-            // Debug logging
             Console.WriteLine($"AddComment called: postId={postId}, commentText={commentDto?.CommentText}");
 
             if (!User.Identity.IsAuthenticated)
@@ -111,12 +116,11 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: ReadArticles/EditComment
+        // POST: ReadArticles/EditComment - कमेंट अपडेट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> EditComment(int commentId, [FromBody] CommentDto commentDto)
         {
-            // Debug logging
             Console.WriteLine($"EditComment called: commentId={commentId}, commentText={commentDto?.CommentText}");
 
             if (!User.Identity.IsAuthenticated)
@@ -168,54 +172,83 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: ReadArticles/DeleteComment
+        // POST: ReadArticles/DeleteComment - कमेंट डिलीट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteComment(int commentId)
         {
+            Console.WriteLine($"DeleteComment called: commentId={commentId}");
+
             if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
                 return Unauthorized();
+            }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
             if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
                 return BadRequest("Invalid user ID.");
+            }
 
             var comment = await _context.Comments
                 .FirstOrDefaultAsync(c => c.CommentID == commentId && c.UserID == parsedUserId);
 
             if (comment == null)
-                return NotFound("Comment not found.");
+            {
+                Console.WriteLine($"Comment {commentId} not found or not owned by user {parsedUserId}");
+                return NotFound($"Comment {commentId} not found or not owned by user {parsedUserId}.");
+            }
 
             try
             {
+                Console.WriteLine("Removing comment from context");
                 _context.Comments.Remove(comment);
                 await _context.SaveChangesAsync();
+                Console.WriteLine("Comment deleted successfully");
                 return Json(new { success = true });
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Database error: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
                 return StatusCode(500, $"Database error: {ex.Message}");
             }
         }
 
-        // POST: ReadArticles/ToggleLike
+        // POST: ReadArticles/ToggleLike - कमेंट को लाइक/अनलाइज करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ToggleLike(int commentId)
         {
+            Console.WriteLine($"ToggleLike called: commentId={commentId}");
+
             if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
                 return Unauthorized();
+            }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
             if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
                 return BadRequest("Invalid user ID.");
+            }
 
             var comment = await _context.Comments
                 .Include(c => c.Likes)
                 .FirstOrDefaultAsync(c => c.CommentID == commentId);
 
             if (comment == null)
+            {
+                Console.WriteLine($"Comment {commentId} not found");
                 return NotFound("Comment not found.");
+            }
 
             var existingLike = comment.Likes
                 .FirstOrDefault(l => l.UserID == parsedUserId);
@@ -240,10 +273,14 @@ namespace NewsPortalApp.Controllers
 
                 _context.Comments.Update(comment);
                 await _context.SaveChangesAsync();
+                Console.WriteLine("Like toggled successfully");
                 return Json(new { success = true, numberOfLikes = comment.NumberOfLikes });
             }
             catch (Exception ex)
             {
+                Console.WriteLine($"Database error: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
                 return StatusCode(500, $"Database error: {ex.Message}");
             }
         }

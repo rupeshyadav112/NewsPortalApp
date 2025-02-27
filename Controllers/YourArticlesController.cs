@@ -23,14 +23,28 @@ namespace NewsPortalApp.Controllers
             _webHostEnvironment = webHostEnvironment;
         }
 
-        // GET: YourArticles
+        // GET: YourArticles - सभी पोस्ट्स की लिस्ट दिखाना
         public IActionResult Index()
         {
             var posts = LoadPosts();
             return View(posts);
         }
 
-        // Load posts from the database
+        // GET: YourArticles/Index/{id} - एक पोस्ट और इसके कमेंट्स दिखाना
+        public IActionResult Index(int id)
+        {
+            var post = LoadPost(id);
+            if (post == null)
+            {
+                Console.WriteLine($"Post with ID {id} not found");
+                return NotFound();
+            }
+
+            ViewBag.RecentArticles = LoadRecentArticles(id);
+            return View(post);
+        }
+
+        // डेटाबेस से सभी पोस्ट्स लोड करना
         private List<Post> LoadPosts()
         {
             var posts = new List<Post>();
@@ -58,7 +72,129 @@ namespace NewsPortalApp.Controllers
             return posts;
         }
 
-        // POST: YourArticles/Delete/{postId}
+        // डेटाबेस से एक पोस्ट और इसके कमेंट्स लोड करना
+        private Post LoadPost(int id)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                var post = new Post();
+                var cmd = new SqlCommand("SELECT PostID, Title, Content, Category, ImagePath, CreatedAt FROM Posts WHERE PostID = @PostID", conn);
+                cmd.Parameters.AddWithValue("@PostID", id);
+                conn.Open();
+                var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    post.PostID = reader.GetInt32(0);
+                    post.Title = reader.GetString(1);
+                    post.Content = reader.GetString(2);
+                    post.Category = reader.GetString(3);
+                    post.ImagePath = reader.IsDBNull(4) ? null : reader.GetString(4);
+                    post.CreatedAt = reader.GetDateTime(5);
+                }
+                else
+                {
+                    return null;
+                }
+                reader.Close();
+
+                // कमेंट्स लोड करना
+                post.Comments = new List<Comment>();
+                cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt FROM Comments WHERE PostID = @PostID ORDER BY CreatedAt DESC", conn);
+                cmd.Parameters.AddWithValue("@PostID", id);
+                var commentReader = cmd.ExecuteReader();
+                while (commentReader.Read())
+                {
+                    var comment = new Comment
+                    {
+                        CommentID = commentReader.GetInt32(0),
+                        PostID = commentReader.GetInt32(1),
+                        UserID = commentReader.GetInt32(2),
+                        CommentText = commentReader.GetString(3),
+                        NumberOfLikes = commentReader.GetInt32(4),
+                        CreatedAt = commentReader.GetDateTime(5),
+                        ModifiedAt = commentReader.IsDBNull(6) ? (DateTime?)null : commentReader.GetDateTime(6),
+                        User = LoadUser(commentReader.GetInt32(2)), // यूज़र डिटेल्स
+                        Likes = LoadLikes(commentReader.GetInt32(0)) // लाइक्स
+                    };
+                    post.Comments.Add(comment);
+                }
+                return post;
+            }
+        }
+
+        // डेटाबेस से यूज़र लोड करना
+        private User LoadUser(int userId)
+        {
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                var cmd = new SqlCommand("SELECT UserID, Username, Email, ProfileImagePath FROM Users WHERE UserID = @UserID", conn);
+                cmd.Parameters.AddWithValue("@UserID", userId);
+                conn.Open();
+                var reader = cmd.ExecuteReader();
+                if (reader.Read())
+                {
+                    return new User
+                    {
+                        UserID = reader.GetInt32(0),
+                        Username = reader.GetString(1),
+                        Email = reader.GetString(2),
+                        ProfileImagePath = reader.IsDBNull(3) ? null : reader.GetString(3)
+                    };
+                }
+                return null;
+            }
+        }
+
+        // डेटाबेस से कमेंट के लाइक्स लोड करना
+        private List<CommentLike> LoadLikes(int commentId)
+        {
+            var likes = new List<CommentLike>();
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                var cmd = new SqlCommand("SELECT LikeID, CommentID, UserID, CreatedAt FROM CommentLikes WHERE CommentID = @CommentID", conn);
+                cmd.Parameters.AddWithValue("@CommentID", commentId);
+                conn.Open();
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    likes.Add(new CommentLike
+                    {
+                        LikeID = reader.GetInt32(0),
+                        CommentID = reader.GetInt32(1),
+                        UserID = reader.GetInt32(2),
+                        CreatedAt = reader.GetDateTime(3)
+                    });
+                }
+            }
+            return likes;
+        }
+
+        // हाल के आर्टिकल्स लोड करना
+        private List<Post> LoadRecentArticles(int excludeId)
+        {
+            var posts = new List<Post>();
+            using (var conn = new SqlConnection(_connectionString))
+            {
+                var cmd = new SqlCommand("SELECT TOP 3 PostID, Title, Category, ImagePath, CreatedAt FROM Posts WHERE PostID != @ExcludeID ORDER BY CreatedAt DESC", conn);
+                cmd.Parameters.AddWithValue("@ExcludeID", excludeId);
+                conn.Open();
+                var reader = cmd.ExecuteReader();
+                while (reader.Read())
+                {
+                    posts.Add(new Post
+                    {
+                        PostID = reader.GetInt32(0),
+                        Title = reader.GetString(1),
+                        Category = reader.GetString(2),
+                        ImagePath = reader.IsDBNull(3) ? null : reader.GetString(3),
+                        CreatedAt = reader.GetDateTime(4)
+                    });
+                }
+            }
+            return posts;
+        }
+
+        // POST: YourArticles/Delete/{postId} - पोस्ट डिलीट करना
         [HttpPost]
         public IActionResult Delete(int postId)
         {
@@ -73,7 +209,7 @@ namespace NewsPortalApp.Controllers
             return RedirectToAction("Index");
         }
 
-        // GET: YourArticles/Edit/{id}
+        // GET: YourArticles/Edit/{id} - पोस्ट एडिट पेज दिखाना
         public IActionResult Edit(int id)
         {
             var post = LoadPosts().FirstOrDefault(p => p.PostID == id);
@@ -95,7 +231,7 @@ namespace NewsPortalApp.Controllers
             return View(post);
         }
 
-        // POST: YourArticles/Edit/{id}
+        // POST: YourArticles/Edit/{id} - पोस्ट अपडेट करना
         [HttpPost]
         public IActionResult Edit(Post post, IFormFile fileUpload)
         {
@@ -155,14 +291,14 @@ namespace NewsPortalApp.Controllers
             return View(post);
         }
 
-        // GET: YourArticles/AllUsers
+        // GET: YourArticles/AllUsers - सभी यूज़र्स की लिस्ट दिखाना
         public IActionResult AllUsers()
         {
             var users = LoadUsers();
             return View(users);
         }
 
-        // Load users from the database
+        // डेटाबेस से यूज़र्स लोड करना
         private List<User> LoadUsers()
         {
             var users = new List<User>();
@@ -189,14 +325,14 @@ namespace NewsPortalApp.Controllers
             return users;
         }
 
-        // GET: YourArticles/AllComment
+        // GET: YourArticles/AllComment - सभी कमेंट्स दिखाना
         public IActionResult AllComment()
         {
             var comments = LoadComments();
             return View(comments);
         }
 
-        // Load comments from the database
+        // डेटाबेस से कमेंट्स लोड करना
         private List<Comment> LoadComments()
         {
             var comments = new List<Comment>();
@@ -232,7 +368,7 @@ namespace NewsPortalApp.Controllers
             return comments;
         }
 
-        // POST: YourArticles/AddComment
+        // POST: YourArticles/AddComment - नया कमेंट जोड़ना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult AddComment(int postId, [FromBody] CommentDto commentDto)
@@ -284,7 +420,7 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/EditComment
+        // POST: YourArticles/EditComment - कमेंट अपडेट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult EditComment(int commentId, [FromBody] CommentDto commentDto)
@@ -315,7 +451,6 @@ namespace NewsPortalApp.Controllers
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
-                    // पहले चेक करें कि कमेंट मौजूद है और यूज़र का है
                     var checkCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
                     checkCmd.Parameters.AddWithValue("@CommentID", commentId);
                     checkCmd.Parameters.AddWithValue("@UserID", parsedUserId);
@@ -329,7 +464,6 @@ namespace NewsPortalApp.Controllers
                         return NotFound("Comment not found.");
                     }
 
-                    // कमेंट अपडेट करें
                     var cmd = new SqlCommand("UPDATE Comments SET CommentText = @CommentText, ModifiedAt = @ModifiedAt WHERE CommentID = @CommentID AND UserID = @UserID", conn);
                     cmd.Parameters.AddWithValue("@CommentText", commentDto.CommentText);
                     cmd.Parameters.AddWithValue("@ModifiedAt", DateTime.Now);
@@ -350,12 +484,12 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/DeleteComment/{id}
+        // POST: YourArticles/DeleteComment - कमेंट डिलीट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult DeleteComment(int id)
+        public IActionResult DeleteComment(int commentId)
         {
-            Console.WriteLine($"DeleteComment called: commentId={id}");
+            Console.WriteLine($"DeleteComment called: commentId={commentId}");
 
             if (!User.Identity.IsAuthenticated)
             {
@@ -375,25 +509,37 @@ namespace NewsPortalApp.Controllers
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
-                    // पहले चेक करें कि कमेंट मौजूद है और यूज़र का है
-                    var checkCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
-                    checkCmd.Parameters.AddWithValue("@CommentID", id);
-                    checkCmd.Parameters.AddWithValue("@UserID", parsedUserId);
                     conn.Open();
-                    int count = (int)checkCmd.ExecuteScalar();
-                    conn.Close();
 
-                    if (count == 0)
+                    var checkExistsCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID", conn);
+                    checkExistsCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    int existsCount = (int)checkExistsCmd.ExecuteScalar();
+                    if (existsCount == 0)
                     {
-                        Console.WriteLine($"Comment {id} not found or not owned by user {parsedUserId}");
-                        return NotFound("Comment not found.");
+                        Console.WriteLine($"Comment {commentId} does not exist in the database");
+                        return NotFound($"Comment {commentId} does not exist.");
                     }
 
-                    // कमेंट डिलीट करें
+                    var checkOwnerCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    checkOwnerCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    checkOwnerCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    int ownerCount = (int)checkOwnerCmd.ExecuteScalar();
+                    if (ownerCount == 0)
+                    {
+                        Console.WriteLine($"Comment {commentId} not owned by user {parsedUserId}");
+                        return NotFound($"Comment {commentId} not owned by user {parsedUserId}.");
+                    }
+
+                    // पहले CommentLikes से सभी संबंधित रिकॉर्ड्स डिलीट करें
+                    var deleteLikesCmd = new SqlCommand("DELETE FROM CommentLikes WHERE CommentID = @CommentID", conn);
+                    deleteLikesCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    deleteLikesCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted all likes for CommentID {commentId}");
+
+                    // फिर Comments से कमेंट डिलीट करें
                     var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
-                    cmd.Parameters.AddWithValue("@CommentID", id);
+                    cmd.Parameters.AddWithValue("@CommentID", commentId);
                     cmd.Parameters.AddWithValue("@UserID", parsedUserId);
-                    conn.Open();
                     cmd.ExecuteNonQuery();
                 }
                 Console.WriteLine("Comment deleted successfully");
@@ -408,7 +554,7 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/ToggleLike
+        // POST: YourArticles/ToggleLike - कमेंट को लाइक/अनलाइज करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult ToggleLike(int commentId)
@@ -429,7 +575,7 @@ namespace NewsPortalApp.Controllers
                 return BadRequest("Invalid user ID.");
             }
 
-            int currentLikes; // currentLikes को यहाँ डिफाइन किया ताकि स्कोप सही हो
+            int currentLikes;
 
             try
             {
@@ -437,7 +583,6 @@ namespace NewsPortalApp.Controllers
                 {
                     conn.Open();
 
-                    // चेक करें कि कमेंट मौजूद है और NumberOfLikes लोड करें
                     var checkCmd = new SqlCommand("SELECT NumberOfLikes FROM Comments WHERE CommentID = @CommentID", conn);
                     checkCmd.Parameters.AddWithValue("@CommentID", commentId);
                     var result = checkCmd.ExecuteScalar();
@@ -448,7 +593,6 @@ namespace NewsPortalApp.Controllers
                     }
                     currentLikes = Convert.ToInt32(result);
 
-                    // चेक करें कि यूज़र ने पहले लाइक किया है
                     var likeCheckCmd = new SqlCommand("SELECT COUNT(*) FROM CommentLikes WHERE CommentID = @CommentID AND UserID = @UserID", conn);
                     likeCheckCmd.Parameters.AddWithValue("@CommentID", commentId);
                     likeCheckCmd.Parameters.AddWithValue("@UserID", parsedUserId);
@@ -456,29 +600,22 @@ namespace NewsPortalApp.Controllers
 
                     if (likeCount == 0)
                     {
-                        // लाइक जोड़ें
                         var insertCmd = new SqlCommand("INSERT INTO CommentLikes (CommentID, UserID, CreatedAt) VALUES (@CommentID, @UserID, @CreatedAt)", conn);
                         insertCmd.Parameters.AddWithValue("@CommentID", commentId);
                         insertCmd.Parameters.AddWithValue("@UserID", parsedUserId);
                         insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                         insertCmd.ExecuteNonQuery();
-
-                        // NumberOfLikes बढ़ाएँ
                         currentLikes++;
                     }
                     else
                     {
-                        // लाइक हटाएँ
                         var deleteCmd = new SqlCommand("DELETE FROM CommentLikes WHERE CommentID = @CommentID AND UserID = @UserID", conn);
                         deleteCmd.Parameters.AddWithValue("@CommentID", commentId);
                         deleteCmd.Parameters.AddWithValue("@UserID", parsedUserId);
                         deleteCmd.ExecuteNonQuery();
-
-                        // NumberOfLikes घटाएँ
                         currentLikes--;
                     }
 
-                    // NumberOfLikes अपडेट करें
                     var updateCmd = new SqlCommand("UPDATE Comments SET NumberOfLikes = @NumberOfLikes WHERE CommentID = @CommentID", conn);
                     updateCmd.Parameters.AddWithValue("@NumberOfLikes", currentLikes);
                     updateCmd.Parameters.AddWithValue("@CommentID", commentId);
