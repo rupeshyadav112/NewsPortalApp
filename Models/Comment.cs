@@ -1,4 +1,7 @@
-﻿namespace NewsPortalApp.Models
+﻿using System;
+using System.Collections.Generic;
+
+namespace NewsPortalApp.Models
 {
     public class Comment
     {
@@ -7,12 +10,12 @@
         public int UserID { get; set; }
         public string CommentText { get; set; }
         public int NumberOfLikes { get; set; }
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime CreatedAt { get; set; }
         public DateTime? ModifiedAt { get; set; }
-        // Navigation Properties
 
-        public Post Post { get; set; } // Each comment belongs to one post
-        public User User { get; set; } // Each comment is made by one user
-        public ICollection<CommentLike> Likes { get; set; } // A comment can have many likes
+        // Navigation properties (optional, if you want to include them)
+        public Post Post { get; set; }
+        public User User { get; set; }
+        public ICollection<CommentLike> Likes { get; set; }
     }
 }

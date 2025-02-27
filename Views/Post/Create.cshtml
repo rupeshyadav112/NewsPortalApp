@@ -14,11 +14,17 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <link rel="stylesheet" href="~/css/CreatePost.css" />
+    <style>
+        .setleft {
+            margin-left: 30%;
+          
+        }
+    </style>
 </head>
 <body class="bg-gray-50">
 
-    <div class="container mx-auto px-4 pt-24 pb-8">
-        <div class="max-w-3xl mx-auto ">
+    <div class="container mx-auto px-4 pt-24 pb-8 " >
+        <div class="max-w-3xl mx-auto setleft">
             <h1 class="text-2xl font-semibold text-center mb-8">Create a post</h1>
 
             <form asp-action="Create" method="post" enctype="multipart/form-data" class="space-y-6">

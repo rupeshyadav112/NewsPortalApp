@@ -31,12 +31,11 @@ namespace NewsPortalApp.Controllers
             return View("NewsArticles", articles);
         }
 
-
         [HttpPost]
         public IActionResult ApplyFilters(string searchTerm, string sortBy, string category)
         {
             var articles = LoadFilteredPosts(searchTerm, sortBy, category);
-            return View("Index", articles);
+            return View("NewsArticles", articles); // Corrected view name
         }
 
         public IActionResult Logout()
@@ -63,10 +62,16 @@ namespace NewsPortalApp.Controllers
 
                 // Apply filters
                 if (!string.IsNullOrEmpty(searchTerm))
+                {
                     query += " AND (Title LIKE @SearchTerm OR Content LIKE @SearchTerm)";
+                    Console.WriteLine($"Search Term Applied: {searchTerm}");
+                }
 
                 if (!string.IsNullOrEmpty(category))
+                {
                     query += " AND Category = @Category";
+                    Console.WriteLine($"Category Applied: {category}");
+                }
 
                 // Apply sorting
                 switch (sortBy)
@@ -81,6 +86,8 @@ namespace NewsPortalApp.Controllers
                         query += " ORDER BY CreatedAt DESC";
                         break;
                 }
+
+                Console.WriteLine($"Generated Query: {query}");
 
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
@@ -121,4 +128,4 @@ namespace NewsPortalApp.Controllers
             return articles;
         }
     }
-}
+    }

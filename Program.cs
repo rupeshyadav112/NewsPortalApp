@@ -1,63 +1,73 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using NewsPortalApp.DataBase;
+using Microsoft.AspNetCore.Authentication.Cookies; // कुकी ऑथेंटिकेशन के लिए
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// कंट्रोलर और व्यूज़ को सर्विस में जोड़ना
 builder.Services.AddControllersWithViews();
 
-// Database Configuration
+// डेटाबेस कॉन्फ़िगरेशन - SQL Server के साथ ApplicationDbContext जोड़ना
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"))
+           .LogTo(Console.WriteLine, LogLevel.Information)); // डेटाबेस लॉगिंग जोड़ी गई
 
-// Authentication Configuration
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+// ऑथेंटिकेशन सेटअप - कस्टम कुकी स्कीम
+builder.Services.AddAuthentication("custom")
+    .AddCookie("custom", options =>
     {
-        options.LoginPath = "/Account/SignIn";
-        options.AccessDeniedPath = "/Account/AccessDenied";
+        options.LoginPath = "/Account/SignIn";        // लॉगिन पेज का रास्ता
+        options.AccessDeniedPath = "/Account/AccessDenied"; // एक्सेस डिनाइड पेज
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);      // कुकी 30 दिन तक वैलिड
+        options.SlidingExpiration = true;                    // एक्सपायरी रिफ्रेश होगी
     });
 
-// Session Configuration
+// सेशन सेटअप - यूज़र सेशन मैनेजमेंट के लिए
 builder.Services.AddSession(options =>
 {
-    options.IdleTimeout = TimeSpan.FromMinutes(30);
-    options.Cookie.HttpOnly = true;
+    options.Cookie.HttpOnly = true;         // सेशन कुकी सिक्योर
+    options.IdleTimeout = TimeSpan.FromHours(2); // 2 घंटे तक सेशन एक्टिव
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+// मिडलवेयर सेटअप
+if (app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Home/Error");
+    app.UseDeveloperExceptionPage(); // डेवलपमेंट में डिटेल्ड एरर पेज
+}
+else
+{
+    app.UseExceptionHandler("/Home/Error"); // प्रोडक्शन में कस्टम एरर पेज
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
-app.UseStaticFiles();
-app.UseRouting();
+app.UseHttpsRedirection();      // HTTPS पर रीडायरेक्ट
+app.UseStaticFiles();           // स्टैटिक फाइल्स (CSS, JS) सर्व करने के लिए
+app.UseRouting();               // रूटिंग सेटअप
+app.UseAuthentication();        // ऑथेंटिकेशन मिडलवेयर
+app.UseAuthorization();         // ऑथराइज़ेशन मिडलवेयर
+app.UseSession();               // सेशन मिडलवेयर
 
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseSession();
-
-
-app.MapControllerRoute(
-    name: "profile", // प्रोफ़ाइल कंट्रोलर के लिए
-    pattern: "Profile/{action=Index}/{id?}",
-    defaults: new { controller = "Profile" });
-
-
-// IMPORTANT: The default route should be LAST
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-// Other routes (like readarticles) should be BEFORE the default route
+// कस्टम रूट्स
 app.MapControllerRoute(
     name: "readarticles",
     pattern: "ReadArticles/{id}",
     defaults: new { controller = "ReadArticles", action = "Index" });
-app.Run();
+
+app.MapControllerRoute(
+    name: "profile",
+    pattern: "Profile/{action=Index}/{id?}",
+    defaults: new { controller = "Profile" });
+app.MapControllerRoute(
+    name: "addComment",
+    pattern: "ReadArticles/AddComment",
+    defaults: new { controller = "ReadArticles", action = "AddComment" });
+
+
+// डिफ़ॉल्ट रूट (हमेशा आखिरी में)
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run(); // एप्लिकेशन शुरू करना

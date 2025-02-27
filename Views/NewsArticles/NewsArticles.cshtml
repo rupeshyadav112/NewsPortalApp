@@ -11,6 +11,7 @@
 </head>
 <body>
     <main class="main-container">
+        <!-- Filters Section -->
         <aside class="filters">
             <h2>Filters</h2>
             <form method="post" asp-action="ApplyFilters">
@@ -19,7 +20,7 @@
                     <input type="text" id="searchTerm" name="searchTerm" class="form-control" />
                 </div>
                 <div class="filter-group">
-                    <label for="sortBy">Sort By</label>
+                    <label for="sortBy">Sort By:</label>
                     <select id="sortBy" name="sortBy" class="form-control">
                         <option value="">Select an option</option>
                         <option value="date">Date</option>
@@ -30,18 +31,18 @@
                     <label for="category">Category:</label>
                     <select id="category" name="category" class="form-control">
                         <option value="">Select a Category</option>
-                        <option value="worldnews">World News</option>
-                        <option value="localnews">Local News</option>
-                        <option value="sportsnews">Sports</option>
-                        <option value="entertainment">Entertainment</option>
-                        <option value="technology">Technology</option>
+                        <option value="World News">World News</option>
+                        <option value="Local News">Local News</option>
+                        <option value="Sports">Sports</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Technology">Technology</option>
                     </select>
                 </div>
                 <button type="submit" class="apply-filters">Apply Filter</button>
             </form>
         </aside>
 
-        <!-- Total articles here -->
+        <!-- Articles Section -->
         <section class="articles-container">
             <h1>News Articles</h1>
             <div class="articles-grid">
@@ -55,7 +56,7 @@
                                 <h2 class="article-title">@article.Title</h2>
                                 <p class="article-category">@article.Category</p>
                                 <p class="article-date">@article.CreatedAt.ToString("dd MMM yyyy")</p>
-                                <a href="@Url.Action("ReadArticle", "NewsArticles", new { id = article.PostID })" class="read-article">Read Full Article</a>
+                                <a href="@Url.Action("Index", "ReadArticles", new { id = article.PostID })" class="read-article">Read Full Article</a>
                             </div>
                         </article>
                     }
@@ -69,3 +70,68 @@
     </main>
 </body>
 </html>
+@section Scripts {
+    <script>
+        function searchFunction() {
+            // Get the search input value and convert to lowercase
+            const searchInput = document.getElementById('searchInput');
+            const searchTerm = searchInput.value.toLowerCase();
+
+            // Get all article cards
+            const articles = document.querySelectorAll('.article-card');
+
+            // Loop through each article
+            articles.forEach(article => {
+                // Get the article title and category
+                const title = article.querySelector('.article-title').textContent.toLowerCase();
+                const category = article.querySelector('.article-category').textContent.toLowerCase();
+
+                // Check if the search term exists in either title or category
+                if (title.includes(searchTerm) || category.includes(searchTerm)) {
+                    article.style.display = ''; // Show the article
+                } else {
+                    article.style.display = 'none'; // Hide the article
+                }
+            });
+
+            // Show a message if no results found
+            const articlesGrid = document.querySelector('.articles-grid');
+            let noResultsMsg = document.getElementById('noResultsMessage');
+
+            if (Array.from(articles).every(article => article.style.display === 'none')) {
+                if (!noResultsMsg) {
+                    noResultsMsg = document.createElement('p');
+                    noResultsMsg.id = 'noResultsMessage';
+                    noResultsMsg.style.textAlign = 'center';
+                    noResultsMsg.style.gridColumn = '1 / -1';
+                    noResultsMsg.style.padding = '2rem';
+                    noResultsMsg.style.color = '#666';
+                    articlesGrid.appendChild(noResultsMsg);
+                }
+                noResultsMsg.textContent = 'No articles found matching your search.';
+            } else if (noResultsMsg) {
+                noResultsMsg.remove();
+            }
+        }
+
+        // Add debounce function to improve performance
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Apply debounce to search function
+        window.onload = function () {
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', debounce(searchFunction, 300));
+        }
+    </script>
+}
+

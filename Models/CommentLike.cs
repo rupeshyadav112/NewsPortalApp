@@ -6,8 +6,8 @@ namespace NewsPortalApp.Models
     {
         [Key]
         public int LikeID { get; set; }
-        public int? CommentID { get; set; }
-        public int? UserID { get; set; }
+        public int CommentID { get; set; } // Foreign key to Comment
+        public int UserID { get; set; } // Foreign key to User
         public DateTime CreatedAt { get; set; } = DateTime.Now;
      
         public Comment Comment { get; set; } // Each like belongs to one comment

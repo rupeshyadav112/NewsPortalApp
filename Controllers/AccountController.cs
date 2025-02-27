@@ -6,6 +6,10 @@ using Microsoft.Extensions.Configuration;
 using NewsPortalApp.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
+using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace NewsPortalApp.Controllers
 {
@@ -26,111 +30,164 @@ namespace NewsPortalApp.Controllers
                 return RedirectToAction("Index", "Home");
             }
             return View();
-        }
 
+        }
         // POST: /Account/SignIn
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SignIn(SignInViewModel model)
+        public async Task<IActionResult> SignIn(SignInViewModel model)
         {
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
 
-            if (model.Email == "ryadav943@rku.ac.in" && model.Password == "Admin")
+            try
             {
-                SetAdminSession(); // Assuming this sets up your authentication session
-
-                // Corrected RedirectToAction:  "ActionName", "ControllerName"
-                return RedirectToAction("Index", "Dashboard"); //  "Index" is the default action for a view
-
-            }
-           
-            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
-            {
-                conn.Open();
-                string query = @"
-    SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
-    FROM Users 
-    WHERE Email = @Email";
-                using (SqlCommand cmd = new SqlCommand(query, conn))
+                // Admin credentials check
+                if (model.Email == "ryadav943@rku.ac.in" && model.Password == "Admin")
                 {
-                    cmd.Parameters.AddWithValue("@Email", model.Email);
-                    using (SqlDataReader reader = cmd.ExecuteReader())
+                    await SetAdminSessionAsync();
+                    return RedirectToAction("Index", "Dashboard");
+                }
+
+                // Database se user check
+                using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+                string query = @"
+                    SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
+                    FROM Users 
+                    WHERE Email = @Email";
+                using var cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Email", model.Email);
+
+                using var reader = await cmd.ExecuteReaderAsync();
+                if (await reader.ReadAsync())
+                {
+                    string storedPassword = reader["Password"]?.ToString();
+                    if (!string.IsNullOrEmpty(storedPassword) && storedPassword == HashPassword(model.Password))
                     {
-                        if (reader.Read() && reader["Password"].ToString() == HashPassword(model.Password))
-                        {
-                            SetUserSession(reader);
-                            return RedirectToAction("Index", "Home");
-                        }
+                        await SetUserSessionAsync(reader);
+                        return RedirectToAction("Index", "Home");
                     }
                 }
+
+                ModelState.AddModelError("", "Invalid email or password.");
+                return View(model);
             }
-            // Handle incorrect credentials (important!)
-            ModelState.AddModelError("", "Invalid email or password."); // Add error to the model
-            return View(model); // Return to the login view with the error message
+            catch (SqlException ex)
+            {
+                ModelState.AddModelError("", "Database error occurred. Please try again later.");
+                // Log the exception if you have logging configured
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
+                // Log the exception if you have logging configured
+                return View(model);
+            }
         }
 
         // GET: /Account/SignUp
-        public IActionResult SignUp() => View();
+        [HttpGet]
+        public IActionResult SignUp()
+        {
+            return View();
+        }
 
         // POST: /Account/SignUp
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SignUp(SignUpViewModel model)
+        public async Task<IActionResult> SignUp(SignUpViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
-
-            using (SqlConnection conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection")))
+            if (!ModelState.IsValid)
             {
-                conn.Open();
+                return View(model);
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Check for existing user
                 string checkQuery = "SELECT COUNT(*) FROM Users WHERE Username = @Username OR Email = @Email";
-                using (SqlCommand checkCmd = new SqlCommand(checkQuery, conn))
+                using var checkCmd = new SqlCommand(checkQuery, conn);
+                checkCmd.Parameters.AddWithValue("@Username", model.Username);
+                checkCmd.Parameters.AddWithValue("@Email", model.Email);
+                int existingCount = (int)await checkCmd.ExecuteScalarAsync();
+                if (existingCount > 0)
                 {
-                    checkCmd.Parameters.AddWithValue("@Username", model.Username);
-                    checkCmd.Parameters.AddWithValue("@Email", model.Email);
-                    if ((int)checkCmd.ExecuteScalar() > 0)
-                    {
-                        ModelState.AddModelError("", "Username or email already exists");
-                        return View(model);
-                    }
+                    ModelState.AddModelError("", "Username or email already exists.");
+                    return View(model);
                 }
 
+                // Insert new user
                 string insertQuery = @"
-                    INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath) 
-                    VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath)";
-                using (SqlCommand insertCmd = new SqlCommand(insertQuery, conn))
-                {
-                    insertCmd.Parameters.AddWithValue("@Username", model.Username);
-                    insertCmd.Parameters.AddWithValue("@Email", model.Email);
-                    insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
-                    insertCmd.Parameters.AddWithValue("@FullName", model.Username);
-                    insertCmd.Parameters.AddWithValue("@ProfileImagePath", "~/images/avatar.png");
-                    insertCmd.ExecuteNonQuery();
-                }
+                    INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath, CreatedAt) 
+                    VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath, @CreatedAt)";
+                using var insertCmd = new SqlCommand(insertQuery, conn);
+                insertCmd.Parameters.AddWithValue("@Username", model.Username);
+                insertCmd.Parameters.AddWithValue("@Email", model.Email);
+                insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
+                insertCmd.Parameters.AddWithValue("@FullName", model.Username); // FullName default as Username
+                insertCmd.Parameters.AddWithValue("@ProfileImagePath", "~/images/avatar.png");
+                insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
+
+                await insertCmd.ExecuteNonQueryAsync();
+
+                TempData["SuccessMessage"] = "Registration successful! Please login.";
+                return RedirectToAction("SignIn");
             }
-            TempData["SuccessMessage"] = "Registration successful! Please login.";
-            return RedirectToAction("SignIn");
+            catch (SqlException ex)
+            {
+                ModelState.AddModelError("", "Database error occurred. Please try again later.");
+                // Log the exception if you have logging configured
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
+                // Log the exception if you have logging configured
+                return View(model);
+            }
         }
 
-        public IActionResult Logout()
+        // GET: /Account/Logout
+        [HttpGet]
+        public async Task<IActionResult> Logout()
         {
+            await HttpContext.SignOutAsync();
             HttpContext.Session.Clear();
             return RedirectToAction("SignIn");
         }
 
+        // Helper Methods
+
         private string HashPassword(string password)
         {
-            using (var sha256 = SHA256.Create())
-            {
-                byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return Convert.ToBase64String(hashedBytes);
-            }
+            using var sha256 = SHA256.Create();
+            byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
+            return Convert.ToBase64String(hashedBytes);
         }
 
-        private void SetAdminSession()
+        private async Task SetAdminSessionAsync()
         {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, "1"),
+                new Claim(ClaimTypes.Name, "Admin"),
+                new Claim(ClaimTypes.Email, "ryadav943@rku.ac.in"),
+                new Claim("FullName", "Administrator"),
+                new Claim("ProfileImagePath", "~/images/admin.png")
+            };
+
+            var identity = new ClaimsIdentity(claims, "custom");
+            var principal = new ClaimsPrincipal(identity);
+            await HttpContext.SignInAsync("custom", principal);
+
+            // Session for backward compatibility
             HttpContext.Session.SetInt32("UserId", 1);
             HttpContext.Session.SetString("UserEmail", "ryadav943@rku.ac.in");
             HttpContext.Session.SetString("Username", "Admin");
@@ -138,26 +195,38 @@ namespace NewsPortalApp.Controllers
             HttpContext.Session.SetString("UserProfileImage", "~/images/admin.png");
         }
 
-        private void SetUserSession(SqlDataReader reader)
+        private async Task SetUserSessionAsync(SqlDataReader reader)
         {
-            HttpContext.Session.SetInt32("UserId", reader.GetInt32(reader.GetOrdinal("UserID")));
-            HttpContext.Session.SetString("Username", reader["Username"].ToString());
-            HttpContext.Session.SetString("FullName", reader["FullName"].ToString());
-            HttpContext.Session.SetString("Email", reader["Email"].ToString());
+            var userId = reader.GetInt32(reader.GetOrdinal("UserID")).ToString();
+            var username = reader["Username"]?.ToString() ?? string.Empty;
+            var fullName = reader["FullName"]?.ToString() ?? string.Empty;
+            var email = reader["Email"]?.ToString() ?? string.Empty;
+            var profileImagePath = reader.HasColumn("ProfileImagePath") && !reader.IsDBNull(reader.GetOrdinal("ProfileImagePath"))
+                ? reader["ProfileImagePath"].ToString()
+                : "~/images/avatar.png";
 
-            // ProfileImagePath कॉलम सुरक्षित रूप से चेक करें
-            if (reader.HasColumn("ProfileImagePath") && !reader.IsDBNull(reader.GetOrdinal("ProfileImagePath")))
+            var claims = new List<Claim>
             {
-                HttpContext.Session.SetString("UserProfileImage", reader["ProfileImagePath"].ToString());
-            }
-            else
-            {
-                HttpContext.Session.SetString("UserProfileImage", "~/images/avatar.png");
-            }
+                new Claim(ClaimTypes.NameIdentifier, userId),
+                new Claim(ClaimTypes.Name, username),
+                new Claim(ClaimTypes.Email, email),
+                new Claim("FullName", fullName),
+                new Claim("ProfileImagePath", profileImagePath)
+            };
+
+            var identity = new ClaimsIdentity(claims, "custom");
+            var principal = new ClaimsPrincipal(identity);
+            await HttpContext.SignInAsync("custom", principal);
+
+            // Session for backward compatibility
+            HttpContext.Session.SetInt32("UserId", int.Parse(userId));
+            HttpContext.Session.SetString("Username", username);
+            HttpContext.Session.SetString("FullName", fullName);
+            HttpContext.Session.SetString("Email", email);
+            HttpContext.Session.SetString("UserProfileImage", profileImagePath);
         }
     }
 
-    // SQL DataReader Extension Method
     public static class SqlDataReaderExtensions
     {
         public static bool HasColumn(this SqlDataReader reader, string columnName)

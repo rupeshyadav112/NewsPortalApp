@@ -1,43 +1,57 @@
 ﻿@model NewsPortalApp.Models.Post
 @{
     ViewData["Title"] = Model.Title;
+
+    // समय गणना करने का फंक्शन
+    string GetTimeAgo(DateTime createdAt)
+    {
+        DateTime postTime = createdAt;
+        TimeSpan timePassed = DateTime.Now - postTime;
+
+        if (timePassed.TotalMinutes < 1)
+            return "Just now";
+        if (timePassed.TotalHours < 1)
+            return $"{(int)timePassed.TotalMinutes}m ago";
+        if (timePassed.TotalDays < 1)
+            return $"{(int)timePassed.TotalHours}h ago";
+        if (timePassed.TotalDays < 7)
+            return $"{(int)timePassed.TotalDays}d ago";
+
+        return postTime.ToString("MMM dd, yyyy");
+    }
 }
 
-<link rel="stylesheet" href="~/css/ReadArticles.css" />
+<link rel="stylesheet" href="~/css/ReadArticles.css" asp-append-version="true" />
 <style>
-    /* Article Title Styling */
     .article-title.underlined {
         text-align: center;
         text-decoration: underline;
         margin-bottom: 1rem;
     }
 
-    /* Category Box Styling */
     .category-box {
-        display: block; /* Change to block for margin auto to work */
-        padding: 5px 15px; /* Padding for the box */
-        background-color: #ffffff; /* White background */
-        color: #007bff; /* Blue text color */
+        display: block;
+        padding: 15px 25px;
+        background-color: #ffffff;
+        color: #9A9B9C;
         font-size: 14px;
         font-weight: bold;
-        border: 2px solid #007bff; /* Blue border */
-        border-radius: 5px; /* Rounded corners */
-        margin: 0 auto 1rem; /* Center the box horizontally */
-        text-align: center; /* Center align text */
-        width: fit-content; /* Adjust width based on content */
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Optional: Add a subtle shadow */
+        border: 2px solid #9A9B9C;
+        border-radius: 5px;
+        margin: 0 auto 1rem;
+        text-align: center;
+        width: fit-content;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
-    /* Article Hero Image Styling */
     .article-hero-image {
-        width: 100%; /* Full width */
-        height: auto; /* Height adjusts automatically */
-        object-fit: cover; /* Ensures the image covers the area without distortion */
-        border-radius: 0.5rem; /* Optional: Adds rounded corners */
+        width: 100%;
+        height: auto;
+        object-fit: cover;
+        border-radius: 0.5rem;
         margin-bottom: 1rem;
     }
 
-    /* Horizontal Line Styling */
     .horizontal-line {
         border: 0;
         height: 1px;
@@ -45,16 +59,16 @@
         margin: 1rem 0;
     }
 
-    /* Article Subtitle Styling */
     .article-subtitle {
         text-align: center;
         font-size: 1.5rem;
         font-weight: 600;
         margin-bottom: 1rem;
     }
-
 </style>
+
 <main class="main-content">
+    @Html.AntiForgeryToken()
     <article class="article-container">
         <div class="article-hero">
             <h1 class="article-title underlined">@Model.Title</h1>
@@ -80,34 +94,37 @@
                 @Html.Raw(Model.Content)
             </div>
 
-            <!-- Banner above Comments Section -->
             <div class="comments-banner">
                 <h2>Join the Discussion</h2>
                 <p>Share your thoughts and opinions about this article.</p>
             </div>
 
-            <!-- Comments Section -->
             <div class="comments-section">
-                <div class="comment-form">
-                    <div class="user-info">
-                        <i class="fas fa-user"></i>
-                        <span>Commenting as @User.Identity.Name</span>
+                @if (User.Identity.IsAuthenticated)
+                {
+                    <div class="comment-form">
+                        <div class="user-info">
+                            <i class="fas fa-user"></i>
+                            <span>Commenting as @User.Identity.Name</span>
+                        </div>
+                        <textarea id="txtComment" class="comment-input" placeholder="Write your comment..." onkeyup="updateCharCount(this)"></textarea>
+                        <div class="comment-form-footer">
+                            <span class="char-counter">
+                                <span id="charCount">200</span> characters remaining
+                            </span>
+                            <button type="button" id="btnSubmit" class="submit-button">Post Comment</button>
+                        </div>
                     </div>
-
-                    <textarea id="txtComment" class="comment-input"
-                              placeholder="Write your comment..."
-                              onkeyup="updateCharCount(this)"></textarea>
-
-                    <div class="comment-form-footer">
-                        <span class="char-counter">
-                            <span id="charCount">200</span> characters remaining
-                        </span>
-                        <button type="button" id="btnSubmit" class="submit-button">Post Comment</button>
+                }
+                else
+                {
+                    <div class="comments-banner">
+                        <h2>Please <a asp-controller="Account" asp-action="SignIn">login</a> to comment</h2>
                     </div>
-                </div>
+                }
 
                 <div class="comments-list">
-                    @foreach (var comment in Model.Comments)
+                    @foreach (var comment in Model.Comments.OrderByDescending(c => c.CreatedAt))
                     {
                         <div class="comment-item" data-comment-id="@comment.CommentID">
                             <div class="comment-avatar">
@@ -116,27 +133,30 @@
                             <div class="comment-content">
                                 <div class="comment-header">
                                     <span class="comment-author">@comment.User.Username</span>
-                                    <span class="comment-time">@comment.CreatedAt.ToString("dd MMM yyyy")</span>
+                                    <span class="comment-time">
+                                        @GetTimeAgo(comment.CreatedAt)
+                                        @if (comment.ModifiedAt.HasValue)
+                                        {
+                                            <span>(Edited on @GetTimeAgo(comment.ModifiedAt.Value))</span>
+                                        }
+                                    </span>
                                 </div>
                                 <p class="comment-text">@comment.CommentText</p>
                                 <div class="comment-actions">
                                     @if (comment.UserID.ToString() == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)
                                     {
                                         <button type="button" class="action-btn edit-btn" onclick="editComment(@comment.CommentID)">
-                                            <i class="fas fa-edit"></i>
-                                            <span>Edit</span>
+                                            <i class="fas fa-edit"></i> Edit
                                         </button>
                                         <button type="button" class="action-btn delete-btn" onclick="deleteComment(@comment.CommentID)">
-                                            <i class="fas fa-trash-alt"></i>
-                                            <span>Delete</span>
+                                            <i class="fas fa-trash-alt"></i> Delete
                                         </button>
                                     }
-                                    <button type="button"
-                                            class="like-button @(comment.Likes.Any(l => l.UserID.ToString() == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value) ? "liked" : "")"
+                                    <button type="button" class="like-button @(comment.Likes.Any(l => l.UserID.ToString() == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value) ? "liked" : "")"
                                             onclick="likeComment(@comment.CommentID)"
                                             data-comment-id="@comment.CommentID">
                                         <i class="@(comment.Likes.Any(l => l.UserID.ToString() == User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value) ? "fas" : "far") fa-thumbs-up"></i>
-                                        <span class="likes-count">@comment.Likes.Count</span>
+                                        <span class="likes-count">@comment.NumberOfLikes</span>
                                     </button>
                                 </div>
                             </div>
@@ -145,7 +165,6 @@
                 </div>
             </div>
 
-            <!-- Recent Articles Section -->
             <section class="recent-articles">
                 <h2 class="section-title">Recent Articles</h2>
                 <div class="articles-grid">
@@ -162,8 +181,7 @@
                                     <time>@article.CreatedAt.ToString("dd MMM yyyy")</time>
                                 </div>
                                 <a asp-action="Index" asp-route-id="@article.PostID" class="read-more">
-                                    Read Full Article
-                                    <i class="fas fa-arrow-right"></i>
+                                    Read Full Article <i class="fas fa-arrow-right"></i>
                                 </a>
                             </div>
                         </div>
@@ -175,201 +193,164 @@
 </main>
 @section Scripts {
     <script>
-            function searchArticles() {
-                // Get the search input value
-                const searchQuery = document.getElementById("searchInput").value.toLowerCase();
+        function updateCharCount(textarea) {
+            const maxLength = 200;
+            const currentLength = textarea.value.length;
+            const remaining = maxLength - currentLength;
+            document.getElementById('charCount').textContent = remaining;
+            if (currentLength > maxLength) {
+                textarea.value = textarea.value.substring(0, maxLength);
+            }
+        }
 
-                // Get all article cards
-                const articlesGrid = document.getElementById("articlesGrid");
-                const articles = articlesGrid.getElementsByClassName("article-card");
+        document.getElementById('btnSubmit').addEventListener('click', function (e) {
+            e.preventDefault();
+            console.log("Post Comment button clicked");
 
-                // Loop through all articles and hide those that don't match the search query
-                for (let i = 0; i < articles.length; i++) {
-                    const article = articles[i];
-                    const title = article.querySelector(".card-title").innerText.toLowerCase();
-                    const category = article.querySelector(".card-category").innerText.toLowerCase();
+            const commentText = document.getElementById('txtComment').value;
+            if (!commentText.trim()) {
+                alert('Please enter a comment');
+                console.log("Comment text is empty");
+                return;
+            }
 
-                    // Check if the title or category contains the search query
-                    if (title.includes(searchQuery) || category.includes(searchQuery)) {
-                        article.style.display = "block"; // Show the article
-                    } else {
-                        article.style.display = "none"; // Hide the article
-                    }
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            const postId = @Model.PostID;
+            console.log("Sending request:", { postId: postId, commentText: commentText, token: token ? "Present" : "Missing" });
+
+            fetch(`/YourArticles/AddComment?postId=${postId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ commentText: commentText })
+            })
+            .then(response => {
+                console.log("Response received:", { status: response.status, statusText: response.statusText });
+                return response.text().then(text => ({ status: response.status, text: text }));
+            })
+            .then(result => {
+                if (result.status >= 200 && result.status < 300) {
+                    console.log("Comment posted successfully");
+                    location.reload();
+                } else {
+                    console.error("Server error:", result.text);
+                    throw new Error(result.text || "Unknown server error");
                 }
-            }
-            function updateCharCount(textarea) {
-                const maxLength = 200;
-                const currentLength = textarea.value.length;
-                const remaining = maxLength - currentLength;
-
-                document.getElementById('charCount').textContent = remaining;
-
-                if (currentLength > maxLength) {
-                    textarea.value = textarea.value.substring(0, maxLength);
-                }
-            }
-
-            function editComment(commentId) {
-                const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
-                const commentText = commentDiv.querySelector('.comment-text');
-                const originalText = commentText.textContent.trim();
-
-                // Create edit form with escaped text content
-                const editForm = document.createElement('div');
-                editForm.className = 'edit-form';
-                editForm.innerHTML = `
-            <textarea class="comment-input">${originalText}</textarea>
-            <div class="edit-actions">
-                <button type="button" class="submit-button" onclick="saveComment(${commentId})">Save</button>
-                <button type="button" class="cancel-button" onclick="cancelEdit(${commentId}, '${originalText.replace(/'/g, "\\'")}')">Cancel</button>
-            </div>
-        `;
-
-                commentText.style.display = 'none';
-                commentText.insertAdjacentElement('afterend', editForm);
-            }
-
-            function saveComment(commentId) {
-                const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
-                const editForm = commentDiv.querySelector('.edit-form');
-                const commentText = commentDiv.querySelector('.comment-text');
-                const newText = editForm.querySelector('textarea').value.trim();
-
-                if (!newText) {
-                    alert('Comment cannot be empty');
-                    return;
-                }
-
-                // Show loading state
-                const submitButton = editForm.querySelector('.submit-button');
-                submitButton.disabled = true;
-                submitButton.textContent = 'Saving...';
-
-                PageMethods.UpdateComment(commentId, newText, function (response) {
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Save';
-
-                    if (response === 'success') {
-                        commentText.textContent = newText;
-                        commentText.style.display = 'block';
-                        editForm.remove();
-                    } else if (response === 'unauthorized') {
-                        window.location.href = 'SignIn.aspx?returnUrl=' + encodeURIComponent(window.location.href);
-                    } else {
-                        alert('Failed to update comment. Please try again.');
-                    }
-                }, function (error) {
-                    submitButton.disabled = false;
-                    submitButton.textContent = 'Save';
-                    alert('An error occurred while updating the comment. Please try again.');
-                    console.error('Error:', error);
-                });
-            }
-
-            function cancelEdit(commentId, originalText) {
-                const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
-                const editForm = commentDiv.querySelector('.edit-form');
-                const commentText = commentDiv.querySelector('.comment-text');
-
-                commentText.textContent = originalText;
-                commentText.style.display = 'block';
-                editForm.remove();
-            }
-
-            function deleteComment(commentId) {
-                if (!confirm('Are you sure you want to delete this comment?')) return;
-
-                PageMethods.DeleteComment(commentId, function (response) {
-                    if (response === 'success') {
-                        const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
-                        commentDiv.remove();
-                    } else if (response === 'unauthorized') {
-                        window.location.href = 'SignIn.aspx?returnUrl=' + encodeURIComponent(window.location.href);
-                    } else {
-                        alert('Failed to delete comment');
-                    }
-                });
-            }
-
-            function likeComment(commentId) {
-                PageMethods.ToggleLike(commentId, function(result) {
-                    if (result === 'unauthorized') {
-                        window.location.href = 'SignIn.aspx?returnUrl=' + encodeURIComponent(window.location.href);
-                        return;
-                    }
-
-                    const data = JSON.parse(result);
-                    if (data.success) {
-                        const likeButton = document.querySelector(`[data-comment-id="${commentId}"]`);
-                        const likesCount = likeButton.querySelector('.likes-count');
-                        const icon = likeButton.querySelector('i');
-
-                        likesCount.textContent = data.likesCount;
-                        likeButton.classList.toggle('liked');
-                        icon.classList.toggle('far');
-                        icon.classList.toggle('fas');
-                    }
-                });
-            }
-
-            document.getElementById('btnSubmit').addEventListener('click', function(e) {
-                e.preventDefault();
-
-                const commentText = document.getElementById('txtComment').value;
-                if (!commentText.trim()) {
-                    alert('Please enter a comment');
-                    return;
-                }
-
-                PageMethods.AddComment(<%= currentPostId %>, commentText, function (result) {
-                    if (result.success) {
-                        // Clear the comment input
-                        document.getElementById('txtComment').value = '';
-
-                        // Add the new comment to the list without refreshing
-                        const commentsList = document.querySelector('.comments-list');
-                        const newComment = createCommentElement(result.comment);
-                        commentsList.insertBefore(newComment, commentsList.firstChild);
-                    } else {
-                        alert('Failed to add comment');
-                    }
-                });
+            })
+            .catch(error => {
+                console.error("Fetch error:", error.message);
+                alert('Failed to add comment: ' + error.message);
             });
+        });
 
-            function createCommentElement(comment) {
-                const div = document.createElement('div');
-                div.className = 'comment-item';
-                div.setAttribute('data-comment-id', comment.CommentID);
+        function editComment(commentId) {
+            const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
+            const commentText = commentDiv.querySelector('.comment-text');
+            const originalText = commentText.textContent.trim();
+            const editForm = document.createElement('div');
+            editForm.className = 'edit-form';
+            editForm.innerHTML = `
+                <textarea class="comment-input">${originalText}</textarea>
+                <div class="edit-actions">
+                    <button type="button" class="submit-button" onclick="saveComment(${commentId})">Save</button>
+                    <button type="button" class="cancel-button" onclick="cancelEdit(${commentId}, '${originalText.replace(/'/g, "\\'")}')">Cancel</button>
+                </div>
+            `;
+            commentText.style.display = 'none';
+            commentText.insertAdjacentElement('afterend', editForm);
+        }
 
-                div.innerHTML = `
-                    <div class="comment-avatar">
-                        <img src="${comment.UserAvatar}" alt="User avatar" />
-                    </div>
-                    <div class="comment-content">
-                        <div class="comment-header">
-                            <span class="comment-author">${comment.Username}</span>
-                            <span class="comment-time">Just now</span>
-                        </div>
-                        <p class="comment-text">${comment.CommentText}</p>
-                        <div class="comment-actions">
-                            ${comment.IsOwner ? `
-                                <button type="button" class="action-btn edit-btn" onclick="editComment(${comment.CommentID})">
-                                    <i class="fas fa-edit"></i> Edit
-                                </button>
-                                <button type="button" class="action-btn delete-btn" onclick="deleteComment(${comment.CommentID})">
-                                    <i class="fas fa-trash"></i> Delete
-                                </button>
-                            ` : ''}
-                            <button type="button" class="like-button" onclick="likeComment(${comment.CommentID})" data-comment-id="${comment.CommentID}">
-                                <i class="far fa-thumbs-up"></i>
-                                <span class="likes-count">0</span>
-                            </button>
-                        </div>
-                    </div>
-                `;
-
-                return div;
+        function saveComment(commentId) {
+            const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
+            const editForm = commentDiv.querySelector('.edit-form');
+            const commentText = commentDiv.querySelector('.comment-text');
+            const newText = editForm.querySelector('textarea').value.trim();
+            if (!newText) {
+                alert('Comment cannot be empty');
+                return;
             }
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            fetch(`/YourArticles/EditComment?commentId=${commentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                },
+                body: JSON.stringify({ commentText: newText })
+            })
+            .then(response => {
+                if (response.ok) {
+                    commentText.textContent = newText;
+                    commentText.style.display = 'block';
+                    editForm.remove();
+                } else {
+                    alert('Failed to update comment');
+                }
+            })
+            .catch(error => {
+                alert('Failed to update comment: ' + error.message);
+            });
+        }
+
+        function cancelEdit(commentId, originalText) {
+            const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
+            const editForm = commentDiv.querySelector('.edit-form');
+            const commentText = commentDiv.querySelector('.comment-text');
+            commentText.textContent = originalText;
+            commentText.style.display = 'block';
+            editForm.remove();
+        }
+
+        function deleteComment(commentId) {
+            if (!confirm('Are you sure you want to delete this comment?')) return;
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            fetch(`/YourArticles/DeleteComment?commentId=${commentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                }
+            })
+            .then(response => {
+                if (response.ok) {
+                    const commentDiv = document.querySelector(`[data-comment-id="${commentId}"]`);
+                    commentDiv.remove();
+                } else {
+                    alert('Failed to delete comment');
+                }
+            })
+            .catch(error => {
+                alert('Failed to delete comment: ' + error.message);
+            });
+        }
+
+        function likeComment(commentId) {
+            const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+            fetch(`/YourArticles/ToggleLike?commentId=${commentId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'RequestVerificationToken': token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const likeButton = document.querySelector(`[data-comment-id="${commentId}"] .like-button`);
+                    const likesCount = likeButton.querySelector('.likes-count');
+                    const icon = likeButton.querySelector('i');
+                    likesCount.textContent = data.numberOfLikes;
+                    likeButton.classList.toggle('liked');
+                    icon.classList.toggle('far');
+                    icon.classList.toggle('fas');
+                }
+            })
+            .catch(error => {
+                alert('Failed to like comment: ' + error.message);
+            });
+        }
     </script>
 }
-
+}

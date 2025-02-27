@@ -1,13 +1,14 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using NewsPortalApp.Models;
 using Microsoft.Data.SqlClient;
-using System.Collections.Generic;
-using System.Linq;
-using Microsoft.Extensions.Configuration;
-using Microsoft.AspNetCore.Hosting;
-using System.IO;
-using Microsoft.AspNetCore.Http;
+using NewsPortalApp.Models;
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using System.Security.Claims;
 
 namespace NewsPortalApp.Controllers
 {
@@ -81,7 +82,6 @@ namespace NewsPortalApp.Controllers
                 return NotFound();
             }
 
-            // Pass categories to the view
             ViewBag.Categories = new List<string>
             {
                 "Technology",
@@ -92,6 +92,66 @@ namespace NewsPortalApp.Controllers
                 "Local News"
             };
 
+            return View(post);
+        }
+
+        // POST: YourArticles/Edit/{id}
+        [HttpPost]
+        public IActionResult Edit(Post post, IFormFile fileUpload)
+        {
+            if (ModelState.IsValid)
+            {
+                if (fileUpload != null && fileUpload.Length > 0)
+                {
+                    var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
+                    if (!Directory.Exists(uploadsFolder))
+                    {
+                        Directory.CreateDirectory(uploadsFolder);
+                    }
+
+                    var uniqueFileName = Guid.NewGuid().ToString() + "_" + fileUpload.FileName;
+                    var filePath = Path.Combine(uploadsFolder, uniqueFileName);
+
+                    using (var fileStream = new FileStream(filePath, FileMode.Create))
+                    {
+                        fileUpload.CopyTo(fileStream);
+                    }
+
+                    post.ImagePath = "/uploads/" + uniqueFileName;
+                }
+                else
+                {
+                    var existingPost = LoadPosts().FirstOrDefault(p => p.PostID == post.PostID);
+                    if (existingPost != null)
+                    {
+                        post.ImagePath = existingPost.ImagePath;
+                    }
+                }
+
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    var cmd = new SqlCommand("UPDATE Posts SET Title = @Title, Content = @Content, Category = @Category, ImagePath = @ImagePath WHERE PostID = @PostID", conn);
+                    cmd.Parameters.AddWithValue("@Title", post.Title);
+                    cmd.Parameters.AddWithValue("@Content", post.Content);
+                    cmd.Parameters.AddWithValue("@Category", post.Category);
+                    cmd.Parameters.AddWithValue("@ImagePath", post.ImagePath ?? (object)DBNull.Value);
+                    cmd.Parameters.AddWithValue("@PostID", post.PostID);
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+
+                return RedirectToAction("Index");
+            }
+
+            ViewBag.Categories = new List<string>
+            {
+                "Technology",
+                "Health",
+                "Sports",
+                "Entertainment",
+                "World News",
+                "Local News"
+            };
             return View(post);
         }
 
@@ -127,70 +187,6 @@ namespace NewsPortalApp.Controllers
             }
 
             return users;
-        }
-
-        // POST: YourArticles/Edit/{id}
-        [HttpPost]
-        public IActionResult Edit(Post post, IFormFile fileUpload)
-        {
-            if (ModelState.IsValid)
-            {
-                // Handle file upload
-                if (fileUpload != null && fileUpload.Length > 0)
-                {
-                    var uploadsFolder = Path.Combine(_webHostEnvironment.WebRootPath, "uploads");
-                    if (!Directory.Exists(uploadsFolder))
-                    {
-                        Directory.CreateDirectory(uploadsFolder);
-                    }
-
-                    var uniqueFileName = Guid.NewGuid().ToString() + "_" + fileUpload.FileName;
-                    var filePath = Path.Combine(uploadsFolder, uniqueFileName);
-
-                    using (var fileStream = new FileStream(filePath, FileMode.Create))
-                    {
-                        fileUpload.CopyTo(fileStream);
-                    }
-
-                    post.ImagePath = "/uploads/" + uniqueFileName;
-                }
-                else
-                {
-                    // If no new file is uploaded, retain the existing image path
-                    var existingPost = LoadPosts().FirstOrDefault(p => p.PostID == post.PostID);
-                    if (existingPost != null)
-                    {
-                        post.ImagePath = existingPost.ImagePath;
-                    }
-                }
-
-                // Update the post in the database
-                using (var conn = new SqlConnection(_connectionString))
-                {
-                    var cmd = new SqlCommand("UPDATE Posts SET Title = @Title, Content = @Content, Category = @Category, ImagePath = @ImagePath WHERE PostID = @PostID", conn);
-                    cmd.Parameters.AddWithValue("@Title", post.Title);
-                    cmd.Parameters.AddWithValue("@Content", post.Content);
-                    cmd.Parameters.AddWithValue("@Category", post.Category);
-                    cmd.Parameters.AddWithValue("@ImagePath", post.ImagePath ?? (object)DBNull.Value);
-                    cmd.Parameters.AddWithValue("@PostID", post.PostID);
-                    conn.Open();
-                    cmd.ExecuteNonQuery();
-                }
-
-                return RedirectToAction("Index");
-            }
-
-            // If the model state is invalid, reload the categories and return the view
-            ViewBag.Categories = new List<string>
-            {
-                "Technology",
-                "Health",
-                "Sports",
-                "Entertainment",
-                "World News",
-                "Local News"
-            };
-            return View(post);
         }
 
         // GET: YourArticles/AllComment
@@ -230,34 +226,280 @@ namespace NewsPortalApp.Controllers
             }
             catch (Exception ex)
             {
-                // Log the error (e.g., using a logging framework)
-                Console.WriteLine("An error occurred: " + ex.Message);
+                Console.WriteLine("Error loading comments: " + ex.Message);
             }
 
             return comments;
         }
 
-        // POST: YourArticles/DeleteComment/{id}
+        // POST: YourArticles/AddComment
         [HttpPost]
-        public IActionResult DeleteComment(int id)
+        [ValidateAntiForgeryToken]
+        public IActionResult AddComment(int postId, [FromBody] CommentDto commentDto)
         {
+            Console.WriteLine($"AddComment called: postId={postId}, commentText={commentDto?.CommentText}");
+
+            if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
+                return Unauthorized();
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
+            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
+                return BadRequest("Invalid user ID.");
+            }
+
+            if (string.IsNullOrEmpty(commentDto?.CommentText))
+            {
+                Console.WriteLine("Comment text is empty");
+                return BadRequest("Comment text cannot be empty.");
+            }
+
             try
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
-                    var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID", conn);
-                    cmd.Parameters.AddWithValue("@CommentID", id);
+                    var cmd = new SqlCommand("INSERT INTO Comments (PostID, UserID, CommentText, CreatedAt, NumberOfLikes) VALUES (@PostID, @UserID, @CommentText, @CreatedAt, @NumberOfLikes)", conn);
+                    cmd.Parameters.AddWithValue("@PostID", postId);
+                    cmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    cmd.Parameters.AddWithValue("@CommentText", commentDto.CommentText);
+                    cmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+                    cmd.Parameters.AddWithValue("@NumberOfLikes", 0);
                     conn.Open();
                     cmd.ExecuteNonQuery();
                 }
+                Console.WriteLine("Comment added successfully");
+                return Ok();
             }
             catch (Exception ex)
             {
-                // Log the error (e.g., using a logging framework)
-                Console.WriteLine("An error occurred: " + ex.Message);
+                Console.WriteLine($"Error adding comment: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                return StatusCode(500, $"Database error: {ex.Message}");
+            }
+        }
+
+        // POST: YourArticles/EditComment
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult EditComment(int commentId, [FromBody] CommentDto commentDto)
+        {
+            Console.WriteLine($"EditComment called: commentId={commentId}, commentText={commentDto?.CommentText}");
+
+            if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
+                return Unauthorized();
             }
 
-            return RedirectToAction("AllComment");
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
+            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
+                return BadRequest("Invalid user ID.");
+            }
+
+            if (string.IsNullOrEmpty(commentDto?.CommentText))
+            {
+                Console.WriteLine("Comment text is empty");
+                return BadRequest("Comment text cannot be empty.");
+            }
+
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    // पहले चेक करें कि कमेंट मौजूद है और यूज़र का है
+                    var checkCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    checkCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    checkCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    conn.Open();
+                    int count = (int)checkCmd.ExecuteScalar();
+                    conn.Close();
+
+                    if (count == 0)
+                    {
+                        Console.WriteLine($"Comment {commentId} not found or not owned by user {parsedUserId}");
+                        return NotFound("Comment not found.");
+                    }
+
+                    // कमेंट अपडेट करें
+                    var cmd = new SqlCommand("UPDATE Comments SET CommentText = @CommentText, ModifiedAt = @ModifiedAt WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    cmd.Parameters.AddWithValue("@CommentText", commentDto.CommentText);
+                    cmd.Parameters.AddWithValue("@ModifiedAt", DateTime.Now);
+                    cmd.Parameters.AddWithValue("@CommentID", commentId);
+                    cmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+                Console.WriteLine("Comment updated successfully");
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating comment: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                return StatusCode(500, $"Database error: {ex.Message}");
+            }
+        }
+
+        // POST: YourArticles/DeleteComment/{id}
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteComment(int id)
+        {
+            Console.WriteLine($"DeleteComment called: commentId={id}");
+
+            if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
+                return Unauthorized();
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
+            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
+                return BadRequest("Invalid user ID.");
+            }
+
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    // पहले चेक करें कि कमेंट मौजूद है और यूज़र का है
+                    var checkCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    checkCmd.Parameters.AddWithValue("@CommentID", id);
+                    checkCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    conn.Open();
+                    int count = (int)checkCmd.ExecuteScalar();
+                    conn.Close();
+
+                    if (count == 0)
+                    {
+                        Console.WriteLine($"Comment {id} not found or not owned by user {parsedUserId}");
+                        return NotFound("Comment not found.");
+                    }
+
+                    // कमेंट डिलीट करें
+                    var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    cmd.Parameters.AddWithValue("@CommentID", id);
+                    cmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    conn.Open();
+                    cmd.ExecuteNonQuery();
+                }
+                Console.WriteLine("Comment deleted successfully");
+                return Json(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error deleting comment: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                return StatusCode(500, $"Database error: {ex.Message}");
+            }
+        }
+
+        // POST: YourArticles/ToggleLike
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult ToggleLike(int commentId)
+        {
+            Console.WriteLine($"ToggleLike called: commentId={commentId}");
+
+            if (!User.Identity.IsAuthenticated)
+            {
+                Console.WriteLine("User not authenticated");
+                return Unauthorized();
+            }
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Console.WriteLine($"User ID from claims: {userId}");
+            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
+            {
+                Console.WriteLine("Invalid user ID");
+                return BadRequest("Invalid user ID.");
+            }
+
+            int currentLikes; // currentLikes को यहाँ डिफाइन किया ताकि स्कोप सही हो
+
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    conn.Open();
+
+                    // चेक करें कि कमेंट मौजूद है और NumberOfLikes लोड करें
+                    var checkCmd = new SqlCommand("SELECT NumberOfLikes FROM Comments WHERE CommentID = @CommentID", conn);
+                    checkCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    var result = checkCmd.ExecuteScalar();
+                    if (result == null)
+                    {
+                        Console.WriteLine($"Comment {commentId} not found");
+                        return NotFound("Comment not found.");
+                    }
+                    currentLikes = Convert.ToInt32(result);
+
+                    // चेक करें कि यूज़र ने पहले लाइक किया है
+                    var likeCheckCmd = new SqlCommand("SELECT COUNT(*) FROM CommentLikes WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                    likeCheckCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    likeCheckCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                    int likeCount = (int)likeCheckCmd.ExecuteScalar();
+
+                    if (likeCount == 0)
+                    {
+                        // लाइक जोड़ें
+                        var insertCmd = new SqlCommand("INSERT INTO CommentLikes (CommentID, UserID, CreatedAt) VALUES (@CommentID, @UserID, @CreatedAt)", conn);
+                        insertCmd.Parameters.AddWithValue("@CommentID", commentId);
+                        insertCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                        insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
+                        insertCmd.ExecuteNonQuery();
+
+                        // NumberOfLikes बढ़ाएँ
+                        currentLikes++;
+                    }
+                    else
+                    {
+                        // लाइक हटाएँ
+                        var deleteCmd = new SqlCommand("DELETE FROM CommentLikes WHERE CommentID = @CommentID AND UserID = @UserID", conn);
+                        deleteCmd.Parameters.AddWithValue("@CommentID", commentId);
+                        deleteCmd.Parameters.AddWithValue("@UserID", parsedUserId);
+                        deleteCmd.ExecuteNonQuery();
+
+                        // NumberOfLikes घटाएँ
+                        currentLikes--;
+                    }
+
+                    // NumberOfLikes अपडेट करें
+                    var updateCmd = new SqlCommand("UPDATE Comments SET NumberOfLikes = @NumberOfLikes WHERE CommentID = @CommentID", conn);
+                    updateCmd.Parameters.AddWithValue("@NumberOfLikes", currentLikes);
+                    updateCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    updateCmd.ExecuteNonQuery();
+                }
+                Console.WriteLine("Like toggled successfully");
+                return Json(new { success = true, numberOfLikes = currentLikes });
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling like: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                return StatusCode(500, $"Database error: {ex.Message}");
+            }
+        }
+
+        // DTO for comment submission
+        public class CommentDto
+        {
+            public string CommentText { get; set; }
         }
     }
 }
