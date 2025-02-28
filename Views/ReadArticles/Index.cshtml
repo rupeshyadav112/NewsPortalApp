@@ -2,6 +2,7 @@
 
 @{
     ViewData["Title"] = Model.Title;
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
 
     string GetTimeAgo(DateTime createdAt)
     {
@@ -138,7 +139,7 @@
             }
 
     /* **महत्वपूर्ण बदलाव: मार्कडाउन स्टाइलिंग को बेहतर किया गया** */
-    **.article-content h1 {
+    .article-content h1 {
         font-size: 2rem;
         font-weight: bold;
         margin-bottom: 1rem;
@@ -173,7 +174,7 @@
             color: #0056b3;
         }
 
-    **
+ 
 </style>
 
 <main class="main-content">
@@ -204,10 +205,13 @@
             <div class="article-content">
                 @Html.Raw(Model.Content)
             </div>
-
-            <div class="comments-banner">
-                <h2>Join the Discussion</h2>
-                <p>Share your thoughts and opinions about this article.</p>
+            <div class="container">
+                <div class="news-banner">
+                    <h2>Want to know more about today's TOP 10 news?</h2>
+                    <p>Checkout these top news articles. Stay Updated with Daily News: Your Go-To Resources</p>
+                    <!-- Bootstrap Responsive Image -->
+                    <img src="~/Images/news.jpeg" alt="News Image" class="img-fluid">
+                </div>
             </div>
 
             <div class="comments-section">
@@ -647,5 +651,8 @@
                 showMessage("Failed to like comment: " + error.message, true);
             });
         }
+
+
     </script>
 }
+
