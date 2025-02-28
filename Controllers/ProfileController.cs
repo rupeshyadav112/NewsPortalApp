@@ -30,9 +30,8 @@ namespace NewsPortalApp.Controllers
             _logger = logger;
         }
 
-        // GET: Profile
         [HttpGet]
-        public async Task<IActionResult> Index() // Changed from Index to Profile for consistency
+        public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
@@ -48,10 +47,14 @@ namespace NewsPortalApp.Controllers
                 return NotFound("User profile not found.");
             }
 
-            return View("Profile", model); // Explicitly targeting Profile.cshtml
+            if (string.IsNullOrEmpty(model.FullName) && !string.IsNullOrEmpty(model.Username))
+            {
+                model.FullName = model.Username;
+            }
+
+            return View("Profile", model);
         }
 
-        // POST: Profile Update
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> UpdateProfile(UserProfile model)
@@ -63,57 +66,86 @@ namespace NewsPortalApp.Controllers
                 return RedirectToAction("SignIn", "Account");
             }
 
+            _logger.LogInformation("UpdateProfile called for UserId: {UserId}", userId);
+            _logger.LogInformation("Received model: FullName={FullName}, Email={Email}, ProfileImage={ProfileImage}", model.FullName, model.Email, model.ProfileImage?.FileName);
+
             if (!ModelState.IsValid)
             {
-                _logger.LogWarning("Model state invalid for user {UserId}", userId);
+                _logger.LogWarning("Model state invalid for user {UserId}: {Errors}", userId, ModelState.Values);
+                TempData["Message"] = "Please fix the validation errors and try again.";
+                TempData["IsSuccess"] = false;
                 return View("Profile", model);
             }
 
             try
             {
-                // Agar naya image upload kiya gaya hai, toh update karo
+                var existingProfile = await GetUserProfileAsync(userId);
+                if (existingProfile == null)
+                {
+                    _logger.LogError("Existing profile not found for UserId: {UserId}", userId);
+                    throw new Exception("User profile not found.");
+                }
+
+                string newImagePath = existingProfile.ProfileImagePath;
+
                 if (model.ProfileImage != null && model.ProfileImage.Length > 0)
                 {
-                    model.ProfileImagePath = await UploadImageAsync(model.ProfileImage);
+                    _logger.LogInformation("New profile image upload attempt for user {UserId} with file: {FileName}", userId, model.ProfileImage.FileName);
+                    newImagePath = await UploadImageAsync(model.ProfileImage);
+                    _logger.LogInformation("New image uploaded successfully: {NewImagePath}", newImagePath);
                 }
                 else
                 {
-                    // Agar image upload nahi kiya, toh existing path ko retain karo
-                    var existingProfile = await GetUserProfileAsync(userId);
-                    if (existingProfile != null)
-                    {
-                        model.ProfileImagePath = existingProfile.ProfileImagePath;
-                    }
-                    else
-                    {
-                        model.ProfileImagePath = "/images/avatar.png"; // Fallback if no existing profile
-                    }
+                    _logger.LogInformation("No new image uploaded, retaining existing path: {ExistingPath}", existingProfile.ProfileImagePath);
                 }
 
-                // Password update agar provided hai
+                _logger.LogInformation("Setting model.ProfileImagePath to: {NewImagePath}", newImagePath);
+                model.ProfileImagePath = newImagePath;
+
+                if (string.IsNullOrEmpty(model.FullName) && !string.IsNullOrEmpty(existingProfile.Username))
+                {
+                    model.FullName = existingProfile.Username;
+                }
+
                 string passwordHash = null;
                 if (!string.IsNullOrEmpty(model.Password) && !model.IsGoogleAccount)
                 {
                     passwordHash = BCrypt.Net.BCrypt.HashPassword(model.Password);
+                    _logger.LogInformation("Password hash generated for user {UserId}", userId);
                 }
 
                 await UpdateUserProfileAsync(userId, model, passwordHash);
+                _logger.LogInformation("Profile updated in database for user {UserId} with ProfileImagePath: {ProfileImagePath}", userId, model.ProfileImagePath);
+
+                HttpContext.Session.SetString("Username", model.Username ?? existingProfile.Username);
+                HttpContext.Session.SetString("FullName", model.FullName ?? existingProfile.FullName);
+                HttpContext.Session.SetString("Email", model.Email ?? existingProfile.Email);
+                HttpContext.Session.SetString("UserProfileImage", model.ProfileImagePath);
+                _logger.LogInformation("Session updated with UserProfileImage: {UserProfileImage}", model.ProfileImagePath);
 
                 TempData["Message"] = "Profile updated successfully!";
                 TempData["IsSuccess"] = true;
+
+                return RedirectToAction("Index");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
-                TempData["Message"] = "An error occurred while updating your profile. Please try again.";
+                _logger.LogError(ex, "Error updating profile for user {UserId}: {ErrorMessage}", userId, ex.Message);
+                TempData["Message"] = $"An error occurred while updating your profile: {ex.Message}";
                 TempData["IsSuccess"] = false;
                 return View("Profile", model);
             }
-
-            return RedirectToAction("Profile");
         }
 
-        // POST: Delete Account
+        [HttpGet]
+        public async Task<IActionResult> Logout()
+        {
+            await HttpContext.SignOutAsync();
+            HttpContext.Session.Clear();
+            _logger.LogInformation("User signed out.");
+            return RedirectToAction("Index", "Home");
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteAccount()
@@ -134,97 +166,78 @@ namespace NewsPortalApp.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error deleting account for user {UserId}", userId);
-                TempData["Message"] = "An error occurred while deleting your account. Please try again.";
+                TempData["Message"] = "An error occurred while deleting your account.";
                 TempData["IsSuccess"] = false;
-                return RedirectToAction("Profile");
+                return RedirectToAction("Index");
             }
         }
 
-        // GET: Logout
-        [HttpGet]
-        public async Task<IActionResult> Logout()
-        {
-            await HttpContext.SignOutAsync();
-            _logger.LogInformation("User signed out.");
-            return RedirectToAction("Index", "Home");
-        }
-
-        // Helper Methods
-
         private async Task<UserProfile> GetUserProfileAsync(string userId)
         {
-            var profile = new UserProfile();
-
             try
             {
                 using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
                 await connection.OpenAsync();
 
                 string query = @"SELECT Username, FullName, Email, ProfileImagePath, IsGoogleAccount 
-                               FROM Users 
-                               WHERE UserID = @UserID";
+                                FROM Users 
+                                WHERE UserID = @UserID";
 
-                await using var command = new SqlCommand(query, connection);
+                using var command = new SqlCommand(query, connection);
                 command.Parameters.AddWithValue("@UserID", userId);
 
-                await using var reader = await command.ExecuteReaderAsync();
+                using var reader = await command.ExecuteReaderAsync();
                 if (await reader.ReadAsync())
                 {
-                    profile.Username = reader["Username"]?.ToString();
-                    profile.FullName = reader["FullName"]?.ToString();
-                    profile.Email = reader["Email"]?.ToString();
-                    profile.ProfileImagePath = reader["ProfileImagePath"]?.ToString() ?? "/images/avatar.png"; // Default only if null in DB
-                    profile.IsGoogleAccount = Convert.ToBoolean(reader["IsGoogleAccount"]);
+                    var profile = new UserProfile
+                    {
+                        Username = reader["Username"]?.ToString(),
+                        FullName = reader["FullName"]?.ToString(),
+                        Email = reader["Email"]?.ToString(),
+                        ProfileImagePath = reader["ProfileImagePath"]?.ToString() ?? "/images/Avatar.png",
+                        IsGoogleAccount = reader.GetBoolean(reader.GetOrdinal("IsGoogleAccount"))
+                    };
+                    return profile;
                 }
-                else
-                {
-                    _logger.LogWarning("No user found in database for UserId: {UserId}", userId);
-                    return null;
-                }
+
+                _logger.LogWarning("No user found in database for UserId: {UserId}", userId);
+                return null;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error fetching profile for user {UserId}", userId);
-                return null;
+                throw;
             }
-
-            return profile;
         }
 
-        private async Task UpdateUserProfileAsync(string userId, UserProfile model, string passwordHash = null)
+        private async Task UpdateUserProfileAsync(string userId, UserProfile model, string passwordHash)
         {
-            try
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            await connection.OpenAsync();
+            _logger.LogInformation("Updating database for UserId: {UserId} with ProfileImagePath: {ProfileImagePath}", userId, model.ProfileImagePath);
+
+            string query = @"UPDATE Users 
+                            SET Username = @Username,
+                                FullName = @FullName,
+                                Email = @Email,
+                                ProfileImagePath = @ProfileImagePath,
+                                Password = COALESCE(@Password, Password)
+                            WHERE UserID = @UserID";
+
+            using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserID", userId);
+            command.Parameters.AddWithValue("@Username", model.Username ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@FullName", model.FullName ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@Email", model.Email ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@ProfileImagePath", model.ProfileImagePath ?? (object)DBNull.Value); // यहाँ सही वैल्यू पास होनी चाहिए
+            command.Parameters.AddWithValue("@Password", (object)passwordHash ?? DBNull.Value);
+
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+            _logger.LogInformation("Database update completed, rows affected: {RowsAffected}", rowsAffected);
+            if (rowsAffected == 0)
             {
-                using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
-                await connection.OpenAsync();
-
-                string query = @"UPDATE Users 
-                               SET Username = @Username,
-                                   FullName = @FullName, 
-                                   Email = @Email, 
-                                   ProfileImagePath = @ProfileImagePath,
-                                   Password = ISNULL(@Password, Password)
-                               WHERE UserID = @UserID";
-
-                await using var command = new SqlCommand(query, connection);
-                command.Parameters.AddWithValue("@UserID", userId);
-                command.Parameters.AddWithValue("@Username", model.Username ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@FullName", model.FullName ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@Email", model.Email ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@ProfileImagePath", model.ProfileImagePath ?? (object)DBNull.Value); // Save uploaded path or retain existing
-                command.Parameters.AddWithValue("@Password", (object)passwordHash ?? DBNull.Value);
-
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected == 0)
-                {
-                    _logger.LogWarning("No rows affected while updating profile for user {UserId}", userId);
-                    throw new Exception("Profile update failed: User not found.");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
-                throw;
+                _logger.LogWarning("No rows affected while updating profile for user {UserId}. Check UserID or data mismatch.", userId);
+                throw new Exception("Profile update failed: No rows affected. Check UserID or data mismatch.");
             }
         }
 
@@ -232,55 +245,59 @@ namespace NewsPortalApp.Controllers
         {
             if (file == null || file.Length == 0)
             {
+                _logger.LogWarning("No file uploaded in UploadImageAsync.");
                 throw new ArgumentException("No file uploaded.");
             }
 
             if (file.Length > 5 * 1024 * 1024)
             {
+                _logger.LogWarning("File size exceeds 5MB: {FileSize}", file.Length);
                 throw new ArgumentException("File size must be less than 5MB.");
             }
 
-            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp" };
             var fileExtension = Path.GetExtension(file.FileName).ToLower();
             if (!allowedExtensions.Contains(fileExtension))
             {
-                throw new ArgumentException("Only JPG, JPEG, and PNG files are allowed.");
+                _logger.LogWarning("Invalid file extension: {Extension}", fileExtension);
+                throw new ArgumentException("Only JPG, JPEG, PNG, and WEBP files are allowed.");
             }
 
-            var uploadsPath = Path.Combine(_env.WebRootPath, "uploads", "profile-images");
-            Directory.CreateDirectory(uploadsPath);
+            var uploadsPath = Path.Combine(_env.WebRootPath, "Uploads", "profile-images"); // Capital U for consistency
+            if (!Directory.Exists(uploadsPath))
+            {
+                _logger.LogInformation("Creating directory: {UploadsPath}", uploadsPath);
+                Directory.CreateDirectory(uploadsPath);
+            }
 
             var fileName = $"{Guid.NewGuid()}{fileExtension}";
             var filePath = Path.Combine(uploadsPath, fileName);
 
-            await using var stream = new FileStream(filePath, FileMode.Create);
-            await file.CopyToAsync(stream);
+            _logger.LogInformation("Saving image to: {FilePath}", filePath);
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
 
-            return $"/uploads/profile-images/{fileName}";
+            string newPath = $"/Uploads/profile-images/{fileName}"; // Capital U for consistency
+            _logger.LogInformation("Image saved successfully at: {NewPath}", newPath);
+            return newPath;
         }
 
         private async Task DeleteUserAsync(string userId)
         {
-            try
-            {
-                using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
-                await connection.OpenAsync();
+            using var connection = new SqlConnection(_config.GetConnectionString("DefaultConnection"));
+            await connection.OpenAsync();
 
-                string query = "DELETE FROM Users WHERE UserID = @UserID";
-                await using var command = new SqlCommand(query, connection);
-                command.Parameters.AddWithValue("@UserID", userId);
+            string query = "DELETE FROM Users WHERE UserID = @UserID";
+            using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@UserID", userId);
 
-                int rowsAffected = await command.ExecuteNonQueryAsync();
-                if (rowsAffected == 0)
-                {
-                    _logger.LogWarning("No rows affected while deleting user {UserId}", userId);
-                    throw new Exception("Account deletion failed: User not found.");
-                }
-            }
-            catch (Exception ex)
+            int rowsAffected = await command.ExecuteNonQueryAsync();
+            if (rowsAffected == 0)
             {
-                _logger.LogError(ex, "Error deleting user {UserId}", userId);
-                throw;
+                _logger.LogWarning("No rows affected while deleting user {UserId}", userId);
+                throw new Exception("Account deletion failed: User not found.");
             }
         }
     }

@@ -133,7 +133,7 @@ namespace NewsPortalApp.Controllers
                     return View(model);
                 }
 
-                // Insert new user
+                // Insert new user with corrected ProfileImagePath
                 string insertQuery = @"
             INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath, CreatedAt) 
             VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath, @CreatedAt)";
@@ -142,7 +142,7 @@ namespace NewsPortalApp.Controllers
                 insertCmd.Parameters.AddWithValue("@Email", model.Email);
                 insertCmd.Parameters.AddWithValue("@Password", HashPassword(model.Password));
                 insertCmd.Parameters.AddWithValue("@FullName", model.Username); // FullName default as Username
-                insertCmd.Parameters.AddWithValue("@ProfileImagePath", "~/images/avatar.png");
+                insertCmd.Parameters.AddWithValue("@ProfileImagePath", "/images/Avatar.png"); // Changed to /images/Avatar.png
                 insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
 
                 await insertCmd.ExecuteNonQueryAsync();

@@ -1,8 +1,7 @@
 ﻿@model NewsPortalApp.Models.UserProfile
 @{
     ViewData["Title"] = "Profile";
-    // ProfileImagePath ko directly use karenge, default view me set nahi karenge
-    var profileImage = Model.ProfileImagePath;
+    var profileImage = Model.ProfileImagePath ?? "/images/avatar.png";
 }
 
 <link rel="stylesheet" href="~/css/Profile.css" />
@@ -26,7 +25,7 @@
                     @Html.AntiForgeryToken()
 
                     <div class="profile-upload" onclick="document.getElementById('ProfileImage').click();">
-                        <img src="@profileImage" class="profile-image" id="profileImagePreview" />
+                        <img src="@Url.Content(Model.ProfileImagePath ?? "/images/avatar.png")" class="profile-image" id="profileImagePreview" />
                         <div class="upload-overlay">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon">
                                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -39,22 +38,22 @@
                     <input type="file" asp-for="ProfileImage" class="d-none" id="ProfileImage" onchange="previewImage(this)" />
 
                     <div class="form-group">
-                        <label asp-for="FullName"></label>
-                        <input asp-for="FullName" class="form-control" />
+                        <label asp-for="FullName">Full Name</label>
+                        <input asp-for="FullName" class="form-control" value="@(Model.FullName ?? Model.Username)" placeholder="Enter your full name" />
                         <span asp-validation-for="FullName" class="text-danger"></span>
                     </div>
 
                     <div class="form-group">
-                        <label asp-for="Email"></label>
-                        <input asp-for="Email" class="form-control" />
+                        <label asp-for="Email">Email</label>
+                        <input asp-for="Email" class="form-control" value="@Model.Email" readonly />
                         <span asp-validation-for="Email" class="text-danger"></span>
                     </div>
 
                     @if (!Model.IsGoogleAccount)
                     {
                         <div class="form-group">
-                            <label asp-for="Password"></label>
-                            <input asp-for="Password" class="form-control" />
+                            <label asp-for="Password">New Password</label>
+                            <input asp-for="Password" type="password" class="form-control" placeholder="Enter new password (leave blank to keep current)" />
                             <span asp-validation-for="Password" class="text-danger"></span>
                         </div>
                     }
