@@ -8,6 +8,7 @@ body {
     padding-top: 73px;
 }
 
+
 .news-banner {
     background-color: #f4f4f4;
     padding: 20px;
@@ -132,6 +133,7 @@ header {
 }
 
 /* Profile dropdown styles */
+/* Profile dropdown styles */
 .profile-dropdown {
     position: relative;
 }
@@ -223,8 +225,6 @@ header {
 
     .login-btn:hover {
         background-color: rgb(67, 56, 202);
-        color: white; /* Text color on hover */
-        text-decoration: none;
     }
 
 /* Main content styles */
@@ -254,6 +254,7 @@ header {
     margin-bottom: 1.5rem;
     line-height: 1.2;
 }
+
 
 .article-meta {
     display: flex;
