@@ -35,21 +35,17 @@ namespace NewsPortalApp.Controllers
         {
             if (ModelState.IsValid)
             {
-                // अगर Image Upload है, तो SaveUploadedFile() से Save करें
                 if (fileUpload != null)
                 {
                     post.ImagePath = SaveUploadedFile(fileUpload);
                 }
 
-                // Post को Database में सेव करें
                 SaveToDatabase(post);
 
-                // सफलता का संदेश
-                TempData["Message"] = "Post published successfully!";
+                TempData["Message"] = "Post published successfully!"; // अंग्रेजी में संदेश
                 return RedirectToAction("Create");
             }
 
-            // Validation फेल होने पर पुनः Categories पास करें
             ViewBag.Categories = new[] { "World News", "Local News", "Technology", "Sports", "Entertainment" };
             return View(post);
         }
