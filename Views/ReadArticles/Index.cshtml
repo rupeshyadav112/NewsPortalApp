@@ -1,4 +1,5 @@
 ﻿@model NewsPortalApp.Models.Post
+
 @{
     ViewData["Title"] = Model.Title;
 
@@ -135,6 +136,44 @@
             .news-card a:hover {
                 text-decoration: underline;
             }
+
+    /* **महत्वपूर्ण बदलाव: मार्कडाउन स्टाइलिंग को बेहतर किया गया** */
+    **.article-content h1 {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+    }
+
+    .article-content h2 {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        line-height: 1.3;
+    }
+
+    .article-content strong {
+        font-weight: bold;
+    }
+
+    .article-content em {
+        font-style: italic;
+    }
+
+    .article-content u {
+        text-decoration: underline;
+    }
+
+    .article-content a {
+        color: #007bff;
+        text-decoration: underline;
+    }
+
+        .article-content a:hover {
+            color: #0056b3;
+        }
+
+    **
 </style>
 
 <main class="main-content">
@@ -336,7 +375,6 @@
                 </div>
             </section>
 
-            <!-- लेटेस्ट न्यूज़ सेक्शन -->
             <section class="news-section">
                 <h2 class="section-title">Latest News</h2>
                 <div class="articles-grid">
@@ -421,7 +459,8 @@
                     document.getElementById('txtComment').value = '';
                     showMessage("Comment posted successfully");
                     location.reload();
-                } else {
+                }
+                else {
                     console.error("Server error:", result.text);
                     showMessage("Failed to post comment: " + result.text, true);
                 }
@@ -464,7 +503,8 @@
                     document.getElementById(`replyText_${parentCommentId}`).value = '';
                     showMessage("Reply posted successfully");
                     location.reload();
-                } else {
+                }
+                else {
                     console.error("Server error:", result.text);
                     showMessage("Failed to post reply: " + result.text, true);
                 }
@@ -521,7 +561,8 @@
                     editForm.remove();
                     showMessage("Comment updated successfully");
                     location.reload();
-                } else {
+                }
+                else {
                     console.error("Edit server error:", result.text);
                     showMessage("Failed to update comment: " + result.text, true);
                 }
@@ -562,10 +603,12 @@
                     commentDiv.remove();
                     showMessage("Comment deleted successfully");
                     location.reload();
-                } else if (result.status === 404) {
+                }
+                else if (result.status === 404) {
                     console.error("Delete server error: Comment not found for ID:", commentId, "Response:", result.text);
                     showMessage("Comment not found: " + result.text, true);
-                } else {
+                }
+                else {
                     console.error("Delete server error:", result.text, "for ID:", commentId);
                     showMessage("Failed to delete comment: " + result.text, true);
                 }

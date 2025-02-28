@@ -1,9 +1,9 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Markdig;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using NewsPortalApp.Models;
 using System.Security.Claims;
 using System.Text.Json;
-
 
 namespace NewsPortalApp.Controllers
 {
@@ -28,7 +28,6 @@ namespace NewsPortalApp.Controllers
             return View(posts);
         }
 
-        // GET: /YourArticles/Index/{id} - एक पोस्ट और लेटेस्ट न्यूज़ दिखाना
         [Route("YourArticles/Index/{id}")]
         public async Task<IActionResult> Index(int id)
         {
@@ -39,12 +38,27 @@ namespace NewsPortalApp.Controllers
                 return NotFound();
             }
 
+            // मार्कडाउन को HTML में कन्वर्ट करें
+            try
+            {
+                var pipeline = new MarkdownPipelineBuilder()
+                    .UseAdvancedExtensions() // हेडिंग, बोल्ड, इटैलिक आदि के लिए
+                    .Build();
+                post.Content = Markdown.ToHtml(post.Content ?? "", pipeline); // null चेक जोड़ा
+                Console.WriteLine("Markdown converted to HTML successfully.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error converting Markdown to HTML: {ex.Message}");
+                post.Content = post.Content ?? ""; // अगर त्रुटि हो तो रॉ टेक्स्ट दिखाएं
+            }
+
             var newsArticles = await FetchLatestNews();
             ViewBag.NewsArticles = newsArticles;
             Console.WriteLine($"NewsArticles count in Index: {newsArticles.Count}");
 
             ViewBag.RecentArticles = LoadRecentArticles(id);
-            return View("Post", post); // "Post" व्यू यूज़ करें
+            return View("Post", post);
         }
 
         private async Task<List<NewsArticle>> FetchLatestNews()
@@ -91,7 +105,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // बाकी कोड वही रहेगा (संक्षिप्तता के लिए हटाया गया)
         private List<Post> LoadPosts()
         {
             var posts = new List<Post>();
@@ -215,7 +228,7 @@ namespace NewsPortalApp.Controllers
             var posts = new List<Post>();
             using (var conn = new SqlConnection(_connectionString))
             {
-                var cmd = new SqlCommand("SELECT TOP 3 PostID, Title, Category, ImagePath, CreatedAt FROM Posts WHERE PostID != @ExcludeID ORDER BY CreatedAt DESC", conn);
+                var cmd = new SqlCommand("SELECT TOP 6 PostID, Title, Category, ImagePath, CreatedAt FROM Posts WHERE PostID != @ExcludeID ORDER BY CreatedAt DESC", conn);
                 cmd.Parameters.AddWithValue("@ExcludeID", excludeId);
                 conn.Open();
                 var reader = cmd.ExecuteReader();
@@ -235,17 +248,45 @@ namespace NewsPortalApp.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult Delete(int postId)
         {
-            using (var conn = new SqlConnection(_connectionString))
+            try
             {
-                var cmd = new SqlCommand("DELETE FROM Posts WHERE PostID = @PostID", conn);
-                cmd.Parameters.AddWithValue("@PostID", postId);
-                conn.Open();
-                cmd.ExecuteNonQuery();
-            }
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    conn.Open();
 
-            return RedirectToAction("Index");
+                    var deleteCommentsCmd = new SqlCommand(
+                        "DELETE FROM Comments WHERE PostID = @PostID", conn);
+                    deleteCommentsCmd.Parameters.AddWithValue("@PostID", postId);
+                    int commentsDeleted = deleteCommentsCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {commentsDeleted} comments for PostID {postId}");
+
+                    var deletePostCmd = new SqlCommand(
+                        "DELETE FROM Posts WHERE PostID = @PostID", conn);
+                    deletePostCmd.Parameters.AddWithValue("@PostID", postId);
+                    int postsDeleted = deletePostCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {postsDeleted} post(s) for PostID {postId}");
+
+                    if (postsDeleted == 0)
+                    {
+                        return NotFound("Post not found.");
+                    }
+                }
+
+                return RedirectToAction("Index");
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine($"SQL Error: {ex.Message}");
+                return StatusCode(500, "An error occurred while deleting the post.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                return StatusCode(500, "An unexpected error occurred.");
+            }
         }
 
         public IActionResult Edit(int id)
@@ -521,66 +562,61 @@ namespace NewsPortalApp.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult DeleteComment(int commentId)
         {
-            Console.WriteLine($"DeleteComment called: commentId={commentId}");
-
-            if (!User.Identity.IsAuthenticated)
-            {
-                Console.WriteLine("User not authenticated");
-                return Unauthorized();
-            }
-
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            Console.WriteLine($"User ID from claims: {userId}");
-            if (string.IsNullOrEmpty(userId) || !int.TryParse(userId, out int parsedUserId))
-            {
-                Console.WriteLine("Invalid user ID");
-                return BadRequest("Invalid user ID.");
-            }
-
             try
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
                     conn.Open();
 
-                    var checkExistsCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID", conn);
-                    checkExistsCmd.Parameters.AddWithValue("@CommentID", commentId);
-                    int existsCount = (int)checkExistsCmd.ExecuteScalar();
-                    if (existsCount == 0)
+                    // रिकर्सिव CTE के साथ सभी बच्चे कमेंट्स (child comments) ढूंढें और डिलीट करें
+                    var deleteCommentsCmd = new SqlCommand(
+                        @"WITH CommentHierarchy AS (
+                            SELECT CommentID
+                            FROM Comments
+                            WHERE CommentID = @CommentID
+                            UNION ALL
+                            SELECT c.CommentID
+                            FROM Comments c
+                            INNER JOIN CommentHierarchy ch ON c.ParentCommentID = ch.CommentID
+                        )
+                        DELETE CL FROM CommentLikes CL
+                        INNER JOIN CommentHierarchy CH ON CL.CommentID = CH.CommentID;
+
+                        WITH CommentHierarchy AS (
+                            SELECT CommentID
+                            FROM Comments
+                            WHERE CommentID = @CommentID
+                            UNION ALL
+                            SELECT c.CommentID
+                            FROM Comments c
+                            INNER JOIN CommentHierarchy ch ON c.ParentCommentID = ch.CommentID
+                        )
+                        DELETE FROM Comments
+                        WHERE CommentID IN (SELECT CommentID FROM CommentHierarchy);", conn);
+
+                    deleteCommentsCmd.Parameters.AddWithValue("@CommentID", commentId);
+                    int rowsAffected = deleteCommentsCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {rowsAffected} comments (including child comments) and their likes for CommentID {commentId}");
+
+                    if (rowsAffected == 0)
                     {
-                        Console.WriteLine($"Comment {commentId} does not exist in the database");
                         return NotFound($"Comment {commentId} does not exist.");
                     }
-
-                    var checkOwnerCmd = new SqlCommand("SELECT COUNT(*) FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
-                    checkOwnerCmd.Parameters.AddWithValue("@CommentID", commentId);
-                    checkOwnerCmd.Parameters.AddWithValue("@UserID", parsedUserId);
-                    int ownerCount = (int)checkOwnerCmd.ExecuteScalar();
-                    if (ownerCount == 0)
-                    {
-                        Console.WriteLine($"Comment {commentId} not owned by user {parsedUserId}");
-                        return NotFound($"Comment {commentId} not owned by user {parsedUserId}.");
-                    }
-
-                    var deleteLikesCmd = new SqlCommand("DELETE FROM CommentLikes WHERE CommentID = @CommentID", conn);
-                    deleteLikesCmd.Parameters.AddWithValue("@CommentID", commentId);
-                    deleteLikesCmd.ExecuteNonQuery();
-                    Console.WriteLine($"Deleted all likes for CommentID {commentId}");
-
-                    var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
-                    cmd.Parameters.AddWithValue("@CommentID", commentId);
-                    cmd.Parameters.AddWithValue("@UserID", parsedUserId);
-                    cmd.ExecuteNonQuery();
                 }
-                Console.WriteLine("Comment deleted successfully");
-                return Json(new { success = true });
+
+                return RedirectToAction("AllComment");
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine($"SQL Error: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                return StatusCode(500, $"An error occurred while deleting the comment: {ex.Message}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error deleting comment: {ex.Message}");
-                if (ex.InnerException != null)
-                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
-                return StatusCode(500, $"Database error: {ex.Message}");
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
             }
         }
 
@@ -662,18 +698,70 @@ namespace NewsPortalApp.Controllers
             }
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult DeleteUser(int userId)
+        {
+            try
+            {
+                using (var conn = new SqlConnection(_connectionString))
+                {
+                    conn.Open();
+
+                    // 1. यूज़र के Comments डिलीट करें (CommentLikes अपने आप डिलीट हो जाएंगे अगर ON DELETE CASCADE सेट है)
+                    var deleteUserCommentsCmd = new SqlCommand(
+                        "DELETE FROM Comments WHERE UserID = @UserID", conn);
+                    deleteUserCommentsCmd.Parameters.AddWithValue("@UserID", userId);
+                    int userCommentsDeleted = deleteUserCommentsCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {userCommentsDeleted} Comments by UserID {userId}");
+
+                    // 2. यूज़र के CommentLikes डिलीट करें (अगर CASCADE सेट नहीं है)
+                    var deleteUserLikesCmd = new SqlCommand(
+                        "DELETE FROM CommentLikes WHERE UserID = @UserID", conn);
+                    deleteUserLikesCmd.Parameters.AddWithValue("@UserID", userId);
+                    int userLikesDeleted = deleteUserLikesCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {userLikesDeleted} CommentLikes by UserID {userId}");
+
+                    // 3. यूज़र डिलीट करें
+                    var deleteUserCmd = new SqlCommand(
+                        "DELETE FROM Users WHERE UserID = @UserID", conn);
+                    deleteUserCmd.Parameters.AddWithValue("@UserID", userId);
+                    int rowsAffected = deleteUserCmd.ExecuteNonQuery();
+                    Console.WriteLine($"Deleted {rowsAffected} User(s) with UserID {userId}");
+
+                    if (rowsAffected == 0)
+                    {
+                        return NotFound("User not found.");
+                    }
+                }
+
+                return RedirectToAction("AllUsers");
+            }
+            catch (SqlException ex)
+            {
+                Console.WriteLine($"SQL Error: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                return StatusCode(500, $"An error occurred while deleting the user: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+                Console.WriteLine($"Stack Trace: {ex.StackTrace}");
+                return StatusCode(500, $"An unexpected error occurred: {ex.Message}");
+            }
+        }
+
         public class CommentDto
         {
             public string CommentText { get; set; }
         }
-    }
 
-    // NewsArticle क्लास यहाँ डिफाइन की गई
-    public class NewsArticle
-    {
-        public string Title { get; set; }
-        public string Description { get; set; }
-        public string Url { get; set; }
-        public DateTime PublishedAt { get; set; }
+        public class NewsArticle
+        {
+            public string Title { get; set; }
+            public string Description { get; set; }
+            public string Url { get; set; }
+            public DateTime PublishedAt { get; set; }
+        }
     }
 }

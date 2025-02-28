@@ -12,11 +12,9 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
     <link rel="stylesheet" href="~/css/CreatePost.css" />
 </head>
 <body class="bg-gray-50">
-
     <div class="container mx-auto px-4 pt-24 pb-8">
         <div class="max-w-3xl mx-auto">
             <h1 class="text-2xl font-semibold text-center mb-8">Edit Post</h1>
@@ -31,7 +29,6 @@
                     <span asp-validation-for="Title" class="text-red-500"></span>
                 </div>
 
-                <!-- Category -->
                 <!-- Category -->
                 <div>
                     <select asp-for="Category" class="w-64 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -65,19 +62,19 @@
                 <!-- Content Editor -->
                 <div class="border rounded-lg">
                     <div class="border-b p-2 flex items-center space-x-4">
-                        <select asp-for="FontStyle" class="px-3 py-1 border rounded">
+                        <select id="fontStyle" asp-for="FontStyle" class="px-3 py-1 border rounded" onchange="applyHeading()">
                             <option value="normal">Normal</option>
                             <option value="h1">Heading 1</option>
                             <option value="h2">Heading 2</option>
                         </select>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-bold"></i></button>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-italic"></i></button>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-underline"></i></button>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-link"></i></button>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-pencil-alt"></i></button>
-                        <button type="button" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-star"></i></button>
+                        <button type="button" onclick="formatText('bold')" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-bold"></i></button>
+                        <button type="button" onclick="formatText('italic')" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-italic"></i></button>
+                        <button type="button" onclick="formatText('underline')" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-underline"></i></button>
+                        <button type="button" onclick="insertLink()" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-link"></i></button>
+                        <button type="button" onclick="formatText('pencil')" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-pencil-alt"></i></button>
+                        <button type="button" onclick="formatText('star')" class="p-1 hover:bg-gray-100 rounded"><i class="fas fa-star"></i></button>
                     </div>
-                    <textarea asp-for="Content" class="w-full p-4 focus:outline-none" rows="10" placeholder="Write something here.."></textarea>
+                    <textarea asp-for="Content" id="contentTextarea" class="w-full p-4 focus:outline-none" rows="10" placeholder="Write something here..">@Model.Content</textarea>
                     <span asp-validation-for="Content" class="text-red-500"></span>
                 </div>
 
@@ -87,7 +84,7 @@
         </div>
     </div>
 
-    <!-- Script for File Upload -->
+    <!-- Script for File Upload and Formatting -->
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             var categoryDropdown = document.querySelector("select[name='Category']");
@@ -96,6 +93,91 @@
                 categoryDropdown.value = modelCategory;
             }
         });
+
+        // File upload handling
+        document.getElementById('fileUpload').onchange = function () {
+            var fileName = this.value.split('\\').pop();
+            document.getElementById('txtFileName').value = fileName || 'Choose File No file chosen';
+        };
+
+        // Format text (bold, italic, underline, etc.)
+        function formatText(command) {
+            const textarea = document.getElementById('contentTextarea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+
+            if (start === end) return; // No selection, do nothing
+
+            let formattedText = selectedText;
+            switch (command) {
+                case 'bold':
+                    formattedText = `**${selectedText}**`;
+                    break;
+                case 'italic':
+                    formattedText = `*${selectedText}*`;
+                    break;
+                case 'underline':
+                    formattedText = `<u>${selectedText}</u>`;
+                    break;
+                case 'pencil':
+                    formattedText = `<mark>${selectedText}</mark>`;
+                    break;
+                case 'star':
+                    formattedText = `⭐${selectedText}⭐`;
+                    break;
+            }
+
+            textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+            textarea.focus();
+            textarea.selectionStart = start;
+            textarea.selectionEnd = start + formattedText.length;
+        }
+
+        // Apply heading style
+        function applyHeading() {
+            const textarea = document.getElementById('contentTextarea');
+            const fontStyle = document.getElementById('fontStyle').value;
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+
+            if (start === end) return; // No selection, do nothing
+
+            let formattedText = selectedText;
+            switch (fontStyle) {
+                case 'h1':
+                    formattedText = `# ${selectedText}`;
+                    break;
+                case 'h2':
+                    formattedText = `## ${selectedText}`;
+                    break;
+                case 'normal':
+                    formattedText = selectedText; // No additional formatting
+                    break;
+            }
+
+            textarea.value = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+            textarea.focus();
+            textarea.selectionStart = start;
+            textarea.selectionEnd = start + formattedText.length;
+        }
+
+        // Insert a link
+        function insertLink() {
+            const textarea = document.getElementById('contentTextarea');
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            const selectedText = textarea.value.substring(start, end);
+            const url = prompt('Enter the URL:');
+            if (url) {
+                const linkText = `[${selectedText || 'Link'}](${url})`;
+                textarea.value = textarea.value.substring(0, start) + linkText + textarea.value.substring(end);
+                textarea.focus();
+                textarea.selectionStart = start;
+                textarea.selectionEnd = start + linkText.length;
+            }
+        }
     </script>
 </body>
 </html>

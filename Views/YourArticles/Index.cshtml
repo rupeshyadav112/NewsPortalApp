@@ -8,7 +8,8 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" />
 <link rel="stylesheet" href="~/css/YourArticles.css" />
 <style>
-    
+   
+
 </style>
 <div class="sidebar">
     <ul class="sidebar-menu">
@@ -55,10 +56,17 @@
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@post.Title</td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">@post.Category</td>
+                            <!-- मौजूदा डिलीट बटन को इस से बदलें -->
                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                 <a href="/YourArticles/Edit/@post.PostID" class="edit-button">Edit</a>
-                                <button class="delete-button" onclick="return confirm('Are you sure you want to delete this post?');">Delete</button>
-
+                                <form asp-controller="YourArticles" asp-action="Delete" method="post" style="display:inline;">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="postId" value="@post.PostID" />
+                                    <button type="submit" class="delete-button"
+                                            onclick="return confirm('Are you sure you want to delete this post?');">
+                                        Delete
+                                    </button>
+                                </form>
                             </td>
                         </tr>
                     }
