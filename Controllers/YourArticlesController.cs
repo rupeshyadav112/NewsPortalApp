@@ -1,14 +1,9 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using NewsPortalApp.Models;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
+using System.Text.Json;
+
 
 namespace NewsPortalApp.Controllers
 {
@@ -16,22 +11,26 @@ namespace NewsPortalApp.Controllers
     {
         private readonly string _connectionString;
         private readonly IWebHostEnvironment _webHostEnvironment;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public YourArticlesController(IConfiguration configuration, IWebHostEnvironment webHostEnvironment)
+        public YourArticlesController(IConfiguration configuration, IWebHostEnvironment webHostEnvironment, IHttpClientFactory httpClientFactory)
         {
             _connectionString = configuration.GetConnectionString("DefaultConnection");
             _webHostEnvironment = webHostEnvironment;
+            _httpClientFactory = httpClientFactory;
         }
 
-        // GET: YourArticles - सभी पोस्ट्स की लिस्ट दिखाना
+        // GET: /YourArticles - सभी पोस्ट्स की लिस्ट दिखाना
+        [Route("YourArticles")]
         public IActionResult Index()
         {
             var posts = LoadPosts();
             return View(posts);
         }
 
-        // GET: YourArticles/Index/{id} - एक पोस्ट और इसके कमेंट्स दिखाना
-        public IActionResult Index(int id)
+        // GET: /YourArticles/Index/{id} - एक पोस्ट और लेटेस्ट न्यूज़ दिखाना
+        [Route("YourArticles/Index/{id}")]
+        public async Task<IActionResult> Index(int id)
         {
             var post = LoadPost(id);
             if (post == null)
@@ -40,21 +39,67 @@ namespace NewsPortalApp.Controllers
                 return NotFound();
             }
 
+            var newsArticles = await FetchLatestNews();
+            ViewBag.NewsArticles = newsArticles;
+            Console.WriteLine($"NewsArticles count in Index: {newsArticles.Count}");
+
             ViewBag.RecentArticles = LoadRecentArticles(id);
-            return View(post);
+            return View("Post", post); // "Post" व्यू यूज़ करें
         }
 
-        // डेटाबेस से सभी पोस्ट्स लोड करना
+        private async Task<List<NewsArticle>> FetchLatestNews()
+        {
+            var client = _httpClientFactory.CreateClient();
+            var apiKey = "ff175d1b56cb4ca1839b6f76391f1b95";
+            var url = $"https://newsapi.org/v2/top-headlines?country=us&q=news&apiKey={apiKey}";
+
+            try
+            {
+                var response = await client.GetAsync(url);
+                Console.WriteLine($"NewsAPI response status: {response.StatusCode}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Failed to fetch news: {response.StatusCode} - {response.ReasonPhrase}");
+                    return new List<NewsArticle>();
+                }
+
+                var jsonString = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"NewsAPI response: {jsonString.Substring(0, Math.Min(jsonString.Length, 500))}...");
+                var jsonDoc = JsonDocument.Parse(jsonString);
+                var articles = jsonDoc.RootElement.GetProperty("articles").EnumerateArray();
+
+                var newsList = new List<NewsArticle>();
+                foreach (var article in articles)
+                {
+                    newsList.Add(new NewsArticle
+                    {
+                        Title = article.GetProperty("title").GetString(),
+                        Description = article.GetProperty("description").GetString() ?? "No description available",
+                        Url = article.GetProperty("url").GetString(),
+                        PublishedAt = article.GetProperty("publishedAt").GetDateTime()
+                    });
+                }
+                Console.WriteLine($"Fetched {newsList.Count} news articles");
+                return newsList;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fetching news: {ex.Message}");
+                if (ex.InnerException != null)
+                    Console.WriteLine($"Inner exception: {ex.InnerException.Message}");
+                return new List<NewsArticle>();
+            }
+        }
+
+        // बाकी कोड वही रहेगा (संक्षिप्तता के लिए हटाया गया)
         private List<Post> LoadPosts()
         {
             var posts = new List<Post>();
-
             using (var conn = new SqlConnection(_connectionString))
             {
                 var cmd = new SqlCommand("SELECT PostID, Title, Content, Category, ImagePath, CreatedAt FROM Posts ORDER BY CreatedAt DESC", conn);
                 conn.Open();
                 var reader = cmd.ExecuteReader();
-
                 while (reader.Read())
                 {
                     posts.Add(new Post
@@ -68,11 +113,9 @@ namespace NewsPortalApp.Controllers
                     });
                 }
             }
-
             return posts;
         }
 
-        // डेटाबेस से एक पोस्ट और इसके कमेंट्स लोड करना
         private Post LoadPost(int id)
         {
             using (var conn = new SqlConnection(_connectionString))
@@ -97,9 +140,8 @@ namespace NewsPortalApp.Controllers
                 }
                 reader.Close();
 
-                // कमेंट्स लोड करना
                 post.Comments = new List<Comment>();
-                cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt FROM Comments WHERE PostID = @PostID ORDER BY CreatedAt DESC", conn);
+                cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt, ParentCommentID FROM Comments WHERE PostID = @PostID ORDER BY CreatedAt DESC", conn);
                 cmd.Parameters.AddWithValue("@PostID", id);
                 var commentReader = cmd.ExecuteReader();
                 while (commentReader.Read())
@@ -113,8 +155,9 @@ namespace NewsPortalApp.Controllers
                         NumberOfLikes = commentReader.GetInt32(4),
                         CreatedAt = commentReader.GetDateTime(5),
                         ModifiedAt = commentReader.IsDBNull(6) ? (DateTime?)null : commentReader.GetDateTime(6),
-                        User = LoadUser(commentReader.GetInt32(2)), // यूज़र डिटेल्स
-                        Likes = LoadLikes(commentReader.GetInt32(0)) // लाइक्स
+                        ParentCommentID = commentReader.IsDBNull(7) ? (int?)null : commentReader.GetInt32(7),
+                        User = LoadUser(commentReader.GetInt32(2)),
+                        Likes = LoadLikes(commentReader.GetInt32(0))
                     };
                     post.Comments.Add(comment);
                 }
@@ -122,7 +165,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // डेटाबेस से यूज़र लोड करना
         private User LoadUser(int userId)
         {
             using (var conn = new SqlConnection(_connectionString))
@@ -145,7 +187,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // डेटाबेस से कमेंट के लाइक्स लोड करना
         private List<CommentLike> LoadLikes(int commentId)
         {
             var likes = new List<CommentLike>();
@@ -169,7 +210,6 @@ namespace NewsPortalApp.Controllers
             return likes;
         }
 
-        // हाल के आर्टिकल्स लोड करना
         private List<Post> LoadRecentArticles(int excludeId)
         {
             var posts = new List<Post>();
@@ -194,7 +234,6 @@ namespace NewsPortalApp.Controllers
             return posts;
         }
 
-        // POST: YourArticles/Delete/{postId} - पोस्ट डिलीट करना
         [HttpPost]
         public IActionResult Delete(int postId)
         {
@@ -209,7 +248,6 @@ namespace NewsPortalApp.Controllers
             return RedirectToAction("Index");
         }
 
-        // GET: YourArticles/Edit/{id} - पोस्ट एडिट पेज दिखाना
         public IActionResult Edit(int id)
         {
             var post = LoadPosts().FirstOrDefault(p => p.PostID == id);
@@ -231,7 +269,6 @@ namespace NewsPortalApp.Controllers
             return View(post);
         }
 
-        // POST: YourArticles/Edit/{id} - पोस्ट अपडेट करना
         [HttpPost]
         public IActionResult Edit(Post post, IFormFile fileUpload)
         {
@@ -291,14 +328,12 @@ namespace NewsPortalApp.Controllers
             return View(post);
         }
 
-        // GET: YourArticles/AllUsers - सभी यूज़र्स की लिस्ट दिखाना
         public IActionResult AllUsers()
         {
             var users = LoadUsers();
             return View(users);
         }
 
-        // डेटाबेस से यूज़र्स लोड करना
         private List<User> LoadUsers()
         {
             var users = new List<User>();
@@ -325,14 +360,12 @@ namespace NewsPortalApp.Controllers
             return users;
         }
 
-        // GET: YourArticles/AllComment - सभी कमेंट्स दिखाना
         public IActionResult AllComment()
         {
             var comments = LoadComments();
             return View(comments);
         }
 
-        // डेटाबेस से कमेंट्स लोड करना
         private List<Comment> LoadComments()
         {
             var comments = new List<Comment>();
@@ -341,7 +374,7 @@ namespace NewsPortalApp.Controllers
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
-                    var cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt FROM Comments ORDER BY CreatedAt DESC", conn);
+                    var cmd = new SqlCommand("SELECT CommentID, PostID, UserID, CommentText, NumberOfLikes, CreatedAt, ModifiedAt, ParentCommentID FROM Comments ORDER BY CreatedAt DESC", conn);
                     conn.Open();
                     var reader = cmd.ExecuteReader();
 
@@ -355,7 +388,8 @@ namespace NewsPortalApp.Controllers
                             CommentText = reader.GetString(3),
                             NumberOfLikes = reader.GetInt32(4),
                             CreatedAt = reader.GetDateTime(5),
-                            ModifiedAt = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6)
+                            ModifiedAt = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6),
+                            ParentCommentID = reader.IsDBNull(7) ? (int?)null : reader.GetInt32(7)
                         });
                     }
                 }
@@ -368,12 +402,11 @@ namespace NewsPortalApp.Controllers
             return comments;
         }
 
-        // POST: YourArticles/AddComment - नया कमेंट जोड़ना
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult AddComment(int postId, [FromBody] CommentDto commentDto)
+        public IActionResult AddComment(int postId, [FromBody] CommentDto commentDto, int? parentCommentId = null)
         {
-            Console.WriteLine($"AddComment called: postId={postId}, commentText={commentDto?.CommentText}");
+            Console.WriteLine($"AddComment called: postId={postId}, commentText={commentDto?.CommentText}, parentCommentId={parentCommentId}");
 
             if (!User.Identity.IsAuthenticated)
             {
@@ -399,12 +432,13 @@ namespace NewsPortalApp.Controllers
             {
                 using (var conn = new SqlConnection(_connectionString))
                 {
-                    var cmd = new SqlCommand("INSERT INTO Comments (PostID, UserID, CommentText, CreatedAt, NumberOfLikes) VALUES (@PostID, @UserID, @CommentText, @CreatedAt, @NumberOfLikes)", conn);
+                    var cmd = new SqlCommand("INSERT INTO Comments (PostID, UserID, CommentText, CreatedAt, NumberOfLikes, ParentCommentID) VALUES (@PostID, @UserID, @CommentText, @CreatedAt, @NumberOfLikes, @ParentCommentID)", conn);
                     cmd.Parameters.AddWithValue("@PostID", postId);
                     cmd.Parameters.AddWithValue("@UserID", parsedUserId);
                     cmd.Parameters.AddWithValue("@CommentText", commentDto.CommentText);
                     cmd.Parameters.AddWithValue("@CreatedAt", DateTime.Now);
                     cmd.Parameters.AddWithValue("@NumberOfLikes", 0);
+                    cmd.Parameters.AddWithValue("@ParentCommentID", parentCommentId.HasValue ? (object)parentCommentId.Value : DBNull.Value);
                     conn.Open();
                     cmd.ExecuteNonQuery();
                 }
@@ -420,7 +454,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/EditComment - कमेंट अपडेट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult EditComment(int commentId, [FromBody] CommentDto commentDto)
@@ -484,7 +517,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/DeleteComment - कमेंट डिलीट करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult DeleteComment(int commentId)
@@ -530,13 +562,11 @@ namespace NewsPortalApp.Controllers
                         return NotFound($"Comment {commentId} not owned by user {parsedUserId}.");
                     }
 
-                    // पहले CommentLikes से सभी संबंधित रिकॉर्ड्स डिलीट करें
                     var deleteLikesCmd = new SqlCommand("DELETE FROM CommentLikes WHERE CommentID = @CommentID", conn);
                     deleteLikesCmd.Parameters.AddWithValue("@CommentID", commentId);
                     deleteLikesCmd.ExecuteNonQuery();
                     Console.WriteLine($"Deleted all likes for CommentID {commentId}");
 
-                    // फिर Comments से कमेंट डिलीट करें
                     var cmd = new SqlCommand("DELETE FROM Comments WHERE CommentID = @CommentID AND UserID = @UserID", conn);
                     cmd.Parameters.AddWithValue("@CommentID", commentId);
                     cmd.Parameters.AddWithValue("@UserID", parsedUserId);
@@ -554,7 +584,6 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // POST: YourArticles/ToggleLike - कमेंट को लाइक/अनलाइज करना
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult ToggleLike(int commentId)
@@ -633,10 +662,18 @@ namespace NewsPortalApp.Controllers
             }
         }
 
-        // DTO for comment submission
         public class CommentDto
         {
             public string CommentText { get; set; }
         }
+    }
+
+    // NewsArticle क्लास यहाँ डिफाइन की गई
+    public class NewsArticle
+    {
+        public string Title { get; set; }
+        public string Description { get; set; }
+        public string Url { get; set; }
+        public DateTime PublishedAt { get; set; }
     }
 }

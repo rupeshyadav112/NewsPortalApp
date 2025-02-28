@@ -3,7 +3,7 @@ using NewsPortalApp.DataBase;
 using Microsoft.AspNetCore.Authentication.Cookies; // कुकी ऑथेंटिकेशन के लिए
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.Services.AddHttpClient(); // .NET 6+
 // कंट्रोलर और व्यूज़ को सर्विस में जोड़ना
 builder.Services.AddControllersWithViews();
 
