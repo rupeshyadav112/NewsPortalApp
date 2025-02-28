@@ -13,7 +13,6 @@
     <link rel="stylesheet" href="~/css/SignUp.css" />
 </head>
 <body>
-
     <div class="signup-container">
         <div class="form-header">
             <h1>DailyNeuzz</h1><br />
@@ -22,6 +21,22 @@
         </div>
 
         <div class="signup-box">
+            <!-- Success Message -->
+            @if (TempData["SuccessMessage"] != null)
+            {
+                <div class="alert alert-success" role="alert">
+                    @TempData["SuccessMessage"]
+                </div>
+            }
+
+            <!-- Error Message -->
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger" role="alert">
+                    @TempData["ErrorMessage"]
+                </div>
+            }
+
             <form asp-action="SignUp" method="post">
                 <div asp-validation-summary="ModelOnly" class="text-danger"></div>
 
@@ -52,5 +67,26 @@
         </div>
     </div>
 
+    <!-- Optional: Add some CSS for alerts -->
+    <style>
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            border-radius: 4px;
+        }
+
+        .alert-success {
+            color: #155724;
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+        }
+
+        .alert-danger {
+            color: #721c24;
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+        }
+    </style>
 </body>
 </html>

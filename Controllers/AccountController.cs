@@ -33,12 +33,14 @@ namespace NewsPortalApp.Controllers
 
         }
         // POST: /Account/SignIn
+        // POST: /Account/SignIn
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SignIn(SignInViewModel model)
         {
             if (!ModelState.IsValid)
             {
+                TempData["ErrorMessage"] = "Please fill all required fields correctly.";
                 return View(model);
             }
 
@@ -48,6 +50,7 @@ namespace NewsPortalApp.Controllers
                 if (model.Email == "ryadav943@rku.ac.in" && model.Password == "Admin")
                 {
                     await SetAdminSessionAsync();
+                    TempData["SuccessMessage"] = "Admin login successful!";
                     return RedirectToAction("Index", "Dashboard");
                 }
 
@@ -55,9 +58,9 @@ namespace NewsPortalApp.Controllers
                 using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
                 await conn.OpenAsync();
                 string query = @"
-                    SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
-                    FROM Users 
-                    WHERE Email = @Email";
+            SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
+            FROM Users 
+            WHERE Email = @Email";
                 using var cmd = new SqlCommand(query, conn);
                 cmd.Parameters.AddWithValue("@Email", model.Email);
 
@@ -68,27 +71,32 @@ namespace NewsPortalApp.Controllers
                     if (!string.IsNullOrEmpty(storedPassword) && storedPassword == HashPassword(model.Password))
                     {
                         await SetUserSessionAsync(reader);
+                        TempData["SuccessMessage"] = "Welcome back! Login successful.";
                         return RedirectToAction("Index", "Home");
                     }
+                    else
+                    {
+                        TempData["ErrorMessage"] = "Invalid email or password.";
+                        return View(model);
+                    }
                 }
-
-                ModelState.AddModelError("", "Invalid email or password.");
-                return View(model);
+                else
+                {
+                    TempData["ErrorMessage"] = "Invalid email or password.";
+                    return View(model);
+                }
             }
             catch (SqlException ex)
             {
-                ModelState.AddModelError("", "Database error occurred. Please try again later.");
-                // Log the exception if you have logging configured
+                TempData["ErrorMessage"] = "Database error occurred. Please try again later.";
                 return View(model);
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
-                // Log the exception if you have logging configured
+                TempData["ErrorMessage"] = "An unexpected error occurred. Please try again.";
                 return View(model);
             }
         }
-
         // GET: /Account/SignUp
         [HttpGet]
         public IActionResult SignUp()
@@ -97,12 +105,14 @@ namespace NewsPortalApp.Controllers
         }
 
         // POST: /Account/SignUp
+        // POST: /Account/SignUp
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SignUp(SignUpViewModel model)
         {
             if (!ModelState.IsValid)
             {
+                TempData["ErrorMessage"] = "Please fill all required fields correctly.";
                 return View(model);
             }
 
@@ -119,14 +129,14 @@ namespace NewsPortalApp.Controllers
                 int existingCount = (int)await checkCmd.ExecuteScalarAsync();
                 if (existingCount > 0)
                 {
-                    ModelState.AddModelError("", "Username or email already exists.");
+                    TempData["ErrorMessage"] = "Username or email already exists.";
                     return View(model);
                 }
 
                 // Insert new user
                 string insertQuery = @"
-                    INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath, CreatedAt) 
-                    VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath, @CreatedAt)";
+            INSERT INTO Users (Username, Email, Password, FullName, ProfileImagePath, CreatedAt) 
+            VALUES (@Username, @Email, @Password, @FullName, @ProfileImagePath, @CreatedAt)";
                 using var insertCmd = new SqlCommand(insertQuery, conn);
                 insertCmd.Parameters.AddWithValue("@Username", model.Username);
                 insertCmd.Parameters.AddWithValue("@Email", model.Email);
@@ -137,23 +147,20 @@ namespace NewsPortalApp.Controllers
 
                 await insertCmd.ExecuteNonQueryAsync();
 
-                TempData["SuccessMessage"] = "Registration successful! Please login.";
+                TempData["SuccessMessage"] = "Registration successful! Please sign in to continue.";
                 return RedirectToAction("SignIn");
             }
             catch (SqlException ex)
             {
-                ModelState.AddModelError("", "Database error occurred. Please try again later.");
-                // Log the exception if you have logging configured
+                TempData["ErrorMessage"] = "A database error occurred. Please try again later.";
                 return View(model);
             }
             catch (Exception ex)
             {
-                ModelState.AddModelError("", "An unexpected error occurred. Please try again.");
-                // Log the exception if you have logging configured
+                TempData["ErrorMessage"] = "An unexpected error occurred. Please try again.";
                 return View(model);
             }
         }
-
         // GET: /Account/Logout
         [HttpGet]
         public async Task<IActionResult> Logout()

@@ -1,9 +1,9 @@
 ﻿@model NewsPortalApp.Models.SignInViewModel
 @{
     ViewData["Title"] = "Sign In";
+    Layout = "~/Views/Shared/_Layout.cshtml"; // Assuming you want to use the shared layout
 }
 <link rel="stylesheet" href="~/css/SignIn.css" />
-
 
 <div class="signup-container">
     <div class="form-header">
@@ -13,6 +13,22 @@
     </div>
 
     <div class="signup-box">
+        <!-- Success Message -->
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success" role="alert">
+                @TempData["SuccessMessage"]
+            </div>
+        }
+
+        <!-- Error Message -->
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger" role="alert">
+                @TempData["ErrorMessage"]
+            </div>
+        }
+
         <form asp-action="SignIn" method="post">
             @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="text-danger"></div>
@@ -37,3 +53,24 @@
         </form>
     </div>
 </div>
+
+<style>
+    .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        color: #155724;
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
+
+    .alert-danger {
+        color: #721c24;
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+</style>
