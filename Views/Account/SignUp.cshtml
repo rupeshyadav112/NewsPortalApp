@@ -1,92 +1,96 @@
-﻿@model NewsPortalApp.Models.SignUpViewModel
+@model NewsPortalApp.Models.SignUpViewModel
 @{
     ViewData["Title"] = "Sign Up";
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
-
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"]</title>
-    <link rel="stylesheet" href="~/css/SignUp.css" />
-</head>
-<body>
-    <div class="signup-container">
-        <div class="form-header">
-            <h1>DailyNeuzz</h1><br />
-            <h2>Create a new account</h2>
-            <p class="subtitle">Welcome to Morning Greetings, Please provide your details</p>
-        </div>
-
-        <div class="signup-box">
-            <!-- Success Message -->
-            @if (TempData["SuccessMessage"] != null)
-            {
-                <div class="alert alert-success" role="alert">
-                    @TempData["SuccessMessage"]
-                </div>
-            }
-
-            <!-- Error Message -->
-            @if (TempData["ErrorMessage"] != null)
-            {
-                <div class="alert alert-danger" role="alert">
-                    @TempData["ErrorMessage"]
-                </div>
-            }
-
-            <form asp-action="SignUp" method="post">
-                <div asp-validation-summary="ModelOnly" class="text-danger"></div>
-
-                <div class="form-group">
-                    <label asp-for="Username"></label>
-                    <input asp-for="Username" class="form-control" />
-                    <span asp-validation-for="Username" class="text-danger"></span>
-                </div>
-
-                <div class="form-group">
-                    <label asp-for="Email"></label>
-                    <input asp-for="Email" class="form-control" />
-                    <span asp-validation-for="Email" class="text-danger"></span>
-                </div>
-
-                <div class="form-group">
-                    <label asp-for="Password"></label>
-                    <input asp-for="Password" type="password" class="form-control" />
-                    <span asp-validation-for="Password" class="text-danger"></span>
-                </div>
-
-                <div class="button-group">
-                    <button type="submit" class="signup-btn">Sign Up</button>
-                    <button type="button" class="google-btn">Continue with Google</button>
-                    <p class="login-link">Already have an account? <a asp-action="SignIn">Sign In</a></p>
-                </div>
-            </form>
-        </div>
+<link rel="stylesheet" href="~/css/SignUp.css" />
+<div class="signup-container">
+    <div class="form-header">
+        <h1>DailyNeuzz</h1><br />
+        <h2>Create a new account</h2>
+        <p class="subtitle">Welcome to Morning Greetings, Please provide your details</p>
     </div>
 
-    <!-- Optional: Add some CSS for alerts -->
-    <style>
-        .alert {
-            padding: 15px;
-            margin-bottom: 20px;
-            border: 1px solid transparent;
-            border-radius: 4px;
+    <div class="signup-box">
+        <!-- Success Message -->
+        @if (TempData["SuccessMessage"] != null)
+        {
+            <div class="alert alert-success" role="alert">
+                @TempData["SuccessMessage"]
+            </div>
         }
 
-        .alert-success {
-            color: #155724;
-            background-color: #d4edda;
-            border-color: #c3e6cb;
+        <!-- Error Message -->
+        @if (TempData["ErrorMessage"] != null)
+        {
+            <div class="alert alert-danger" role="alert">
+                @TempData["ErrorMessage"]
+            </div>
         }
 
-        .alert-danger {
-            color: #721c24;
-            background-color: #f8d7da;
-            border-color: #f5c6cb;
+        <form asp-action="SignUp" method="post">
+            <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+            <div class="form-group">
+                <label asp-for="Username"></label>
+                <input asp-for="Username" class="form-control" placeholder="Enter username" autocomplete="username" />
+                <span asp-validation-for="Username" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Email"></label>
+                <input asp-for="Email" class="form-control" placeholder="name@example.com" autocomplete="email" />
+                <span asp-validation-for="Email" class="text-danger"></span>
+            </div>
+
+            <div class="form-group">
+                <label asp-for="Password"></label>
+                <input asp-for="Password" type="password" class="form-control" placeholder="Enter password" autocomplete="new-password" />
+                <span asp-validation-for="Password" class="text-danger"></span>
+            </div>
+
+            <div class="button-group">
+                <button type="submit" class="signup-btn">Sign Up</button>
+                <a asp-controller="Account" asp-action="GoogleLogin" class="google-btn">Continue with Google</a>
+                <p class="login-link">Already have an account? <a asp-action="SignIn">Sign In</a></p>
+            </div>
+        </form>
+    </div>
+</div>
+
+<style>
+    .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+    }
+
+    .alert-success {
+        color: #155724;
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
+
+    .alert-danger {
+        color: #721c24;
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+
+    .google-btn {
+        background-color: green;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        text-align: center;
+        display: inline-block;
+        text-decoration: none;
+    }
+
+        .google-btn:hover {
+            background-color: #357abd;
         }
-    </style>
-</body>
-</html>
+</style>
