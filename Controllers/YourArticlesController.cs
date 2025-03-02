@@ -1,4 +1,4 @@
-﻿using Markdig;
+using Markdig;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using NewsPortalApp.Models;
