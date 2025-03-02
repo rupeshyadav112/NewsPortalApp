@@ -5,11 +5,7 @@ using NewsPortalApp.Models;
 using Microsoft.Data.SqlClient;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
-using System.IO;
-using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
+
 
 namespace NewsPortalApp.Controllers
 {
