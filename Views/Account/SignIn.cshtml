@@ -1,7 +1,7 @@
-﻿@model NewsPortalApp.Models.SignInViewModel
+@model NewsPortalApp.Models.SignInViewModel
 @{
     ViewData["Title"] = "Sign In";
-    Layout = "~/Views/Shared/_Layout.cshtml"; // Assuming you want to use the shared layout
+    Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <link rel="stylesheet" href="~/css/SignIn.css" />
 
@@ -35,19 +35,19 @@
 
             <div class="form-group">
                 <label asp-for="Email"></label>
-                <input asp-for="Email" class="form-control" placeholder="name@example.com" />
+                <input asp-for="Email" class="form-control" placeholder="name@example.com" autocomplete="email" />
                 <span asp-validation-for="Email" class="text-danger"></span>
             </div>
 
             <div class="form-group">
                 <label asp-for="Password"></label>
-                <input asp-for="Password" type="password" class="form-control" placeholder="Password" />
+                <input asp-for="Password" type="password" class="form-control" placeholder="Password" autocomplete="current-password" />
                 <span asp-validation-for="Password" class="text-danger"></span>
             </div>
 
             <div class="button-group">
                 <button type="submit" class="signup-btn">Sign In</button>
-                <button type="button" class="google-btn">Continue with Google</button>
+                <a asp-controller="Account" asp-action="GoogleLogin" class="google-btn">Continue with Google</a>
                 <p class="login-link">Don't have an account? <a asp-action="SignUp">Sign Up</a></p>
             </div>
         </form>
@@ -73,4 +73,20 @@
         background-color: #f8d7da;
         border-color: #f5c6cb;
     }
+
+    .google-btn {
+        background-color: green;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        text-align: center;
+        display: inline-block;
+        text-decoration: none;
+    }
+
+        .google-btn:hover {
+            background-color: #357abd;
+        }
 </style>
