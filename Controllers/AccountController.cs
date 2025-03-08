@@ -9,7 +9,8 @@ using System.Security.Claims;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication.Google;
-
+using System.Net.Mail;
+using System.Net;
 
 namespace NewsPortalApp.Controllers
 {
@@ -32,7 +33,6 @@ namespace NewsPortalApp.Controllers
             return View();
         }
 
-        // POST: /Account/SignIn
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SignIn(SignInViewModel model)
@@ -57,9 +57,9 @@ namespace NewsPortalApp.Controllers
                 using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
                 await conn.OpenAsync();
                 string query = @"
-                    SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
-                    FROM Users 
-                    WHERE Email = @Email";
+            SELECT UserID, Username, FullName, Email, ProfileImagePath, Password 
+            FROM Users 
+            WHERE Email = @Email";
                 using var cmd = new SqlCommand(query, conn);
                 cmd.Parameters.AddWithValue("@Email", model.Email);
 
@@ -75,19 +75,19 @@ namespace NewsPortalApp.Controllers
                     }
                     else
                     {
-                        TempData["ErrorMessage"] = "Invalid email or password.";
+                        TempData["ErrorMessage"] = "Password is incorrect. Please try again.";
                         return View(model);
                     }
                 }
                 else
                 {
-                    TempData["ErrorMessage"] = "Invalid email or password.";
+                    TempData["ErrorMessage"] = "Email is incorrect. Please check your email address.";
                     return View(model);
                 }
             }
             catch (SqlException ex)
             {
-                TempData["ErrorMessage"] = "Database error occurred. Please try again later.";
+                TempData["ErrorMessage"] = "A database error occurred. Please try again later.";
                 return View(model);
             }
             catch (Exception ex)
@@ -161,6 +161,214 @@ namespace NewsPortalApp.Controllers
             }
         }
 
+        // GET: /Account/ForgotPassword
+        [HttpGet]
+        public IActionResult ForgotPassword()
+        {
+            return View();
+        }
+
+        // POST: /Account/ForgotPassword
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ForgotPassword(ForgotPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "Please enter a valid email address.";
+                return View(model);
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Check if email exists in the database and get UserId
+                string query = "SELECT UserID FROM Users WHERE Email = @Email";
+                using var cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Email", model.Email);
+                var userIdObj = await cmd.ExecuteScalarAsync();
+
+                if (userIdObj == null)
+                {
+                    TempData["ErrorMessage"] = "No account found with this email address.";
+                    return View(model);
+                }
+
+                int userId = (int)userIdObj;
+
+                // Generate a unique token
+                string resetToken = Guid.NewGuid().ToString();
+                DateTime expiryDate = DateTime.UtcNow.AddHours(1); // Token valid for 1 hour
+
+                // Store the token in the database
+                string insertTokenQuery = @"
+                    INSERT INTO PasswordResetTokens (UserId, Token, ExpiryDate, IsUsed)
+                    VALUES (@UserId, @Token, @ExpiryDate, @IsUsed)";
+                using var tokenCmd = new SqlCommand(insertTokenQuery, conn);
+                tokenCmd.Parameters.AddWithValue("@UserId", userId);
+                tokenCmd.Parameters.AddWithValue("@Token", resetToken);
+                tokenCmd.Parameters.AddWithValue("@ExpiryDate", expiryDate);
+                tokenCmd.Parameters.AddWithValue("@IsUsed", false);
+                await tokenCmd.ExecuteNonQueryAsync();
+
+                // Send email with reset link
+                await SendPasswordResetEmail(model.Email, resetToken);
+
+                TempData["SuccessMessage"] = "A password reset link has been sent to your email.";
+                return RedirectToAction("ForgotPassword");
+            }
+            catch (SqlException ex)
+            {
+                TempData["ErrorMessage"] = $"A database error occurred: {ex.Message}";
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = $"An unexpected error occurred: {ex.Message}";
+                return View(model);
+            }
+        }
+
+        // GET: /Account/ResetPassword?token={token}
+        [HttpGet]
+        public async Task<IActionResult> ResetPassword(string token)
+        {
+            if (string.IsNullOrEmpty(token))
+            {
+                TempData["ErrorMessage"] = "Invalid or missing reset token.";
+                return RedirectToAction("SignIn");
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Validate the token
+                string query = @"
+                    SELECT UserId, ExpiryDate, IsUsed 
+                    FROM PasswordResetTokens 
+                    WHERE Token = @Token";
+                using var cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Token", token);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                if (!await reader.ReadAsync())
+                {
+                    TempData["ErrorMessage"] = "Invalid reset token.";
+                    return RedirectToAction("SignIn");
+                }
+
+                bool isUsed = reader.GetBoolean(reader.GetOrdinal("IsUsed"));
+                DateTime expiryDate = reader.GetDateTime(reader.GetOrdinal("ExpiryDate"));
+
+                if (isUsed)
+                {
+                    TempData["ErrorMessage"] = "This reset token has already been used.";
+                    return RedirectToAction("SignIn");
+                }
+
+                if (expiryDate < DateTime.UtcNow)
+                {
+                    TempData["ErrorMessage"] = "This reset token has expired.";
+                    return RedirectToAction("SignIn");
+                }
+
+                // Token is valid, pass it to the view
+                var model = new ResetPasswordViewModel { Token = token };
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "An unexpected error occurred. Please try again.";
+                return RedirectToAction("SignIn");
+            }
+        }
+
+        // POST: /Account/ResetPassword
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["ErrorMessage"] = "Please fill all required fields correctly.";
+                return View(model);
+            }
+
+            try
+            {
+                using var conn = new SqlConnection(_configuration.GetConnectionString("DefaultConnection"));
+                await conn.OpenAsync();
+
+                // Validate the token again
+                string query = @"
+                    SELECT UserId, ExpiryDate, IsUsed 
+                    FROM PasswordResetTokens 
+                    WHERE Token = @Token";
+                using var cmd = new SqlCommand(query, conn);
+                cmd.Parameters.AddWithValue("@Token", model.Token);
+                using var reader = await cmd.ExecuteReaderAsync();
+
+                if (!await reader.ReadAsync())
+                {
+                    TempData["ErrorMessage"] = "Invalid reset token.";
+                    return RedirectToAction("SignIn");
+                }
+
+                int userId = reader.GetInt32(reader.GetOrdinal("UserId"));
+                bool isUsed = reader.GetBoolean(reader.GetOrdinal("IsUsed"));
+                DateTime expiryDate = reader.GetDateTime(reader.GetOrdinal("ExpiryDate"));
+
+                if (isUsed)
+                {
+                    TempData["ErrorMessage"] = "This reset token has already been used.";
+                    return RedirectToAction("SignIn");
+                }
+
+                if (expiryDate < DateTime.UtcNow)
+                {
+                    TempData["ErrorMessage"] = "This reset token has expired.";
+                    return RedirectToAction("SignIn");
+                }
+
+                // Mark the token as used
+                await reader.CloseAsync();
+                string updateTokenQuery = @"
+                    UPDATE PasswordResetTokens 
+                    SET IsUsed = 1 
+                    WHERE Token = @Token";
+                using var updateTokenCmd = new SqlCommand(updateTokenQuery, conn);
+                updateTokenCmd.Parameters.AddWithValue("@Token", model.Token);
+                await updateTokenCmd.ExecuteNonQueryAsync();
+
+                // Update the user's password
+                string updatePasswordQuery = @"
+                    UPDATE Users 
+                    SET Password = @Password 
+                    WHERE UserID = @UserId";
+                using var updatePasswordCmd = new SqlCommand(updatePasswordQuery, conn);
+                updatePasswordCmd.Parameters.AddWithValue("@Password", HashPassword(model.NewPassword));
+                updatePasswordCmd.Parameters.AddWithValue("@UserId", userId);
+                await updatePasswordCmd.ExecuteNonQueryAsync();
+
+                TempData["SuccessMessage"] = "Your password has been successfully reset. Please sign in with your new password.";
+                return RedirectToAction("SignIn");
+            }
+            catch (SqlException ex)
+            {
+                TempData["ErrorMessage"] = "A database error occurred. Please try again later.";
+                return View(model);
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "An unexpected error occurred. Please try again.";
+                return View(model);
+            }
+        }
+
         // GET: /Account/Logout
         [HttpGet]
         public async Task<IActionResult> Logout()
@@ -192,7 +400,7 @@ namespace NewsPortalApp.Controllers
             var email = result.Principal.FindFirst(ClaimTypes.Email)?.Value;
             var fullName = result.Principal.FindFirst(ClaimTypes.Name)?.Value;
             var googleId = result.Principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            var profileImageUrl = result.Principal.FindFirst("picture")?.Value; // Google प्रोफाइल इमेज URL
+            var profileImageUrl = result.Principal.FindFirst("picture")?.Value; // Google profile image URL
 
             if (string.IsNullOrEmpty(email))
             {
@@ -213,20 +421,20 @@ namespace NewsPortalApp.Controllers
             }
             else
             {
-                // नया यूज़र, डेटाबेस में डालें
+                // New user, insert into database
                 string insertQuery = @"
-            INSERT INTO Users (Username, Email, FullName, ProfileImagePath, CreatedAt, IsGoogleAccount) 
-            VALUES (@Username, @Email, @FullName, @ProfileImagePath, @CreatedAt, @IsGoogleAccount)";
+                    INSERT INTO Users (Username, Email, FullName, ProfileImagePath, CreatedAt, IsGoogleAccount) 
+                    VALUES (@Username, @Email, @FullName, @ProfileImagePath, @CreatedAt, @IsGoogleAccount)";
                 using var insertCmd = new SqlCommand(insertQuery, conn);
                 insertCmd.Parameters.AddWithValue("@Username", email.Split('@')[0]);
                 insertCmd.Parameters.AddWithValue("@Email", email);
                 insertCmd.Parameters.AddWithValue("@FullName", fullName ?? email.Split('@')[0]);
-                insertCmd.Parameters.AddWithValue("@ProfileImagePath", (object)profileImageUrl ?? DBNull.Value); // Google इमेज URL स्टोर करें
+                insertCmd.Parameters.AddWithValue("@ProfileImagePath", (object)profileImageUrl ?? DBNull.Value); // Store Google image URL
                 insertCmd.Parameters.AddWithValue("@CreatedAt", DateTime.UtcNow);
                 insertCmd.Parameters.AddWithValue("@IsGoogleAccount", true);
                 await insertCmd.ExecuteNonQueryAsync();
 
-                // नया यूज़र सेशन में सेट करें
+                // Set session for the new user
                 using var newCmd = new SqlCommand(query, conn);
                 newCmd.Parameters.AddWithValue("@Email", email);
                 using var newReader = await newCmd.ExecuteReaderAsync();
@@ -238,13 +446,42 @@ namespace NewsPortalApp.Controllers
 
             TempData["SuccessMessage"] = "Successfully logged in with Google!";
             return RedirectToAction("Index", "Home");
-        } // Helper Methods
+        }
 
+        // Helper Methods
         private string HashPassword(string password)
         {
             using var sha256 = SHA256.Create();
             byte[] hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
             return Convert.ToBase64String(hashedBytes);
+        }
+
+        private async Task SendPasswordResetEmail(string email, string resetToken)
+        {
+            var resetLink = Url.Action("ResetPassword", "Account", new { token = resetToken }, protocol: Request.Scheme);
+            var fromAddress = new MailAddress("ramuydvji112@gmail.com", "NewsPortal_App");
+            var toAddress = new MailAddress(email);
+            const string subject = "Password Reset Request";
+            string body = $"Please reset your password by clicking here: <a href='{resetLink}'>Reset Your Password</a>";
+
+            var smtp = new SmtpClient
+            {
+                Host = "smtp.gmail.com",
+                Port = 587,
+                EnableSsl = true,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false,
+                Credentials = new NetworkCredential("ramuydvji112@gmail.com", "uqxo bdbg apuc qgvn")
+            };
+
+            using var message = new MailMessage(fromAddress, toAddress)
+            {
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true
+            };
+
+            await smtp.SendMailAsync(message);
         }
 
         private async Task SetAdminSessionAsync()
