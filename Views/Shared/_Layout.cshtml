@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -66,7 +66,9 @@
     <header>
         <div class="header-content">
             <div class="header-left">
-                <a href="/" class="header-logo">DailyNeuzz</a>
+                <h1>
+                    <span style="color: #64748b;">Daily</span>Neuzz
+                </h1><br /> 
             </div>
 
             <div class="header-center">
@@ -91,7 +93,7 @@
                     <!-- User is logged in -->
                     <div class="profile-dropdown">
                         <div class="profile-icon" onclick="toggleDropdown()">
-                            <img src="@(Context.Session.GetString("UserProfileImage") ?? "/images/avatar.png")" class="profile-image" alt="Profile" />
+                            <img src="@Url.Content(Context.Session.GetString("UserProfileImage") ?? "/images/Avatar.png")" class="profile-image" alt="Profile Picture" />
                         </div>
                         <div class="dropdown-menu" id="dropdownMenu">
                             <h4>My Account</h4>
@@ -143,6 +145,8 @@
                         <address>
                             1234 Street Name, City, Country<br>
                             Email: ryadav943@gmail.com<br>
+                            &emsp;&emsp;amahato992@rku.ac.in<br>
+                            &emsp;&emsp;kyadav847@rku.ac.in<br>
                             Phone: +91234567890
                         </address>
                     </div>
