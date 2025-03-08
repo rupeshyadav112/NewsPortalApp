@@ -1,20 +1,55 @@
-﻿@*
+@*
     For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 *@
 @{
+
     <!DOCTYPE html>
     <html xmlns="http://www.w3.org/1999/xhtml">
     <head runat="server">
         <title>About - DailyNeuzz</title>
         <link rel="stylesheet" href="~/css/About.css">
-        
+        <style>
+            .hero {
+                display: flex;
+                align-items: center;
+                justify-content: space-between; /* टेक्स्ट और इमेज के बीच जगह बनाए रखें */
+                gap: 20px;
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 2rem;
+            }
+
+            .hero-content {
+                text-align: center; /* टेक्स्ट को सेंटर में रखें */
+                flex: 1; /* टेक्स्ट को लेफ्ट-राइट में जगह लेने दें */
+                margin: 0 auto; /* सेंटर में अलाइन करें */
+                max-width: 600px; /* टेक्स्ट की चौड़ाई को कंट्रोल करें ताकि बहुत न फैले */
+            }
+
+            .hero-image {
+                width: 100%;
+                max-width: 500px; /* इमेज की चौड़ाई */
+                border-radius: 8px;
+                overflow: hidden;
+                display: block;
+                margin-left: auto; /* इमेज को दाईं तरफ शिफ्ट करें */
+            }
+
+                .hero-image img {
+                    width: 100%;
+                    height: auto;
+                    object-fit: cover;
+                    transition: transform 0.5s ease-in-out;
+                }
+
+                .hero-image:hover img {
+                    transform: scale(1.1);
+                }
+                </style>
     </head>
     <body>
         <form id="form1" runat="server">
             <asp:ScriptManager runat="server" />
-
-            
-
             <main>
                 <section class="hero">
                     <div class="hero-content">
