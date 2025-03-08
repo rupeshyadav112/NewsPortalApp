@@ -4,9 +4,12 @@
     Layout = "~/Views/Shared/_Layout.cshtml";
 }
 <link rel="stylesheet" href="~/css/SignUp.css" />
+
 <div class="signup-container">
     <div class="form-header">
-        <h1>DailyNeuzz</h1><br />
+        <h1>
+            <span style="color: #64748b;">Daily</span>Neuzz
+        </h1><br />
         <h2>Create a new account</h2>
         <p class="subtitle">Welcome to Morning Greetings, Please provide your details</p>
     </div>
@@ -51,7 +54,10 @@
 
             <div class="button-group">
                 <button type="submit" class="signup-btn">Sign Up</button>
-                <a asp-controller="Account" asp-action="GoogleLogin" class="google-btn">Continue with Google</a>
+                <div class="google-btn-container">
+                    <a asp-controller="Account" asp-action="GoogleLogin" class="google-btn">Continue with Google</a>
+                    <a asp-controller="Account" asp-action="ForgotPassword" class="forgot-password">Forgot Password?</a>
+                </div>
                 <p class="login-link">Already have an account? <a asp-action="SignIn">Sign In</a></p>
             </div>
         </form>
@@ -59,6 +65,53 @@
 </div>
 
 <style>
+    .google-btn-container {
+        position: relative;
+        display: inline-block;
+        width: 100%; /* Ensures it takes full width of the button */
+    }
+
+    .signup-btn {
+        padding: 10px 20px;
+        background-color: #007BFF; /* Blue color to match your design */
+        border: none;
+        color: white;
+        cursor: pointer;
+        border-radius: 5px;
+        width: 100%; /* Full width of the container */
+    }
+
+    .google-btn {
+        background-color: green;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        text-align: center;
+        display: inline-block;
+        text-decoration: none;
+        width: 100%; /* Full width to match Sign Up button */
+        margin-top: 10px; /* Space between Sign Up and Google button */
+    }
+
+        .google-btn:hover {
+            background-color: #357abd;
+        }
+
+    .forgot-password {
+        position: absolute;
+        right: 0;
+        bottom: -25px; /* Adjusts vertical position below the Google button */
+        font-size: 12px;
+        color: #007BFF;
+        text-decoration: none;
+    }
+
+        .forgot-password:hover {
+            text-decoration: underline;
+        }
+
     .alert {
         padding: 15px;
         margin-bottom: 20px;
@@ -78,19 +131,8 @@
         border-color: #f5c6cb;
     }
 
-    .google-btn {
-        background-color: green;
-        color: white;
-        border: none;
-        padding: 10px 20px;
-        border-radius: 5px;
-        cursor: pointer;
+    .login-link {
+        margin-top: 20px;
         text-align: center;
-        display: inline-block;
-        text-decoration: none;
     }
-
-        .google-btn:hover {
-            background-color: #357abd;
-        }
 </style>
